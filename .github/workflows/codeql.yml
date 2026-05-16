@@ -1,6 +1,6 @@
 # CodeQL Security Scanning
 #
-# SAST for the Elnora CLI codebase using GitHub's CodeQL engine.
+# SAST for this TypeScript codebase using GitHub's CodeQL engine.
 # Evidence: Security tab > Code scanning alerts
 
 name: CodeQL Security Analysis

@@ -20,8 +20,7 @@ if (!arg || arg === "--help" || arg === "-h") {
 			"Usage:",
 			"  elnora-linear <command> [options]",
 			"",
-			"Commands are still being ported from carmens-agents/plugins/linear-workspace.",
-			"See https://github.com/Elnora-AI/elnora-linear for status.",
+			"Commands are being added incrementally. See the repository for status.",
 			"",
 		].join("\n"),
 	);
