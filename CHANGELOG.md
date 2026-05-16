@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.0.0](https://github.com/Elnora-AI/elnora-linear/compare/v1.1.0...v2.0.0) (2026-05-16)
+
+
+### ⚠ BREAKING CHANGES
+
+* bulk creation paths (`issues batch-create`, `issues bulk-ops` create) now exit 2 with ProjectValidationError when a target team has projects available and the input/op lacks a project. This matches cc9566e's flip on `issues create`. Migration:   - Add `--project` / `projectId` / `project` to every create input     going to a team with projects, OR   - Set `requiresProject: false` for teams that legitimately have     unassigned issues in `references/label-policy.json`, OR   - Pass `--skip-project-check` per-call (CLI) or `skipProjectCheck:     true` per-op (bulk-ops) for placeholder issues.
+
+### Features
+
+* enforce require-project on bypass routes + close install-guide curator gaps ([#28](https://github.com/Elnora-AI/elnora-linear/issues/28)) ([5521e8c](https://github.com/Elnora-AI/elnora-linear/commit/5521e8c15901272dd010f21929d6f65788771957))
+* require a project on issues create by default + auto-sync postinstall + universal AGENTS.md ([#26](https://github.com/Elnora-AI/elnora-linear/issues/26)) ([92a4f26](https://github.com/Elnora-AI/elnora-linear/commit/92a4f26b9d71441fe411e0720831259c76b21c02))
+
 ## [1.1.0](https://github.com/Elnora-AI/elnora-linear/compare/v1.0.1...v1.1.0) (2026-05-16)
 
 
