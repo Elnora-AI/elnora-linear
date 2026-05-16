@@ -40,6 +40,7 @@ elnora-linear issues create "Title" --team "Team" --description "md" \
   [--assignee "name"|"me"|"none"] [--state "Todo"|"Backlog"] \
   [--due-date "YYYY-MM-DD"] [--parent "ENG-123"] \
   [--skip-label-check]                    # bypass team label-policy validation
+  [--skip-project-check]                  # bypass require-a-project rule (placeholder issues only)
 elnora-linear relations create ENG-NEW ENG-OLD [--type related|blocks|duplicate|similar]
 ```
 
@@ -47,7 +48,12 @@ elnora-linear relations create ENG-NEW ENG-OLD [--type related|blocks|duplicate|
 
 **Pitfalls:** `--assignee` (not `--assign`), `--labels` (not `--label`), `--description` (not `--desc`). `--labels` REPLACES existing — for updates, get current first then include all.
 
-**Server-side validation:** `elnora-linear issues create` validates that the proposed labels satisfy the team's policy (from `label-policy.json`). If they don't, the command exits 2 with a structured JSON error containing `missing`, `availableForPrefix`, and `suggestedRetry` — re-run the suggested command verbatim or pick from `availableForPrefix` and retry. You don't need to read any reference file to recover.
+**Server-side validation:** `elnora-linear issues create` validates two things and exits 2 with a structured JSON error on failure:
+
+- **Label policy** (`error: "labels_invalid"`): JSON carries `missing`, `availableForPrefix`, `suggestedRetry`. Re-run the suggested command verbatim or pick from `availableForPrefix`.
+- **Project policy** (`error: "project_required"`): fires when the team has projects available and `--project` was omitted. JSON carries `availableProjects: [{name, status}]` and `suggestedRetry`. Pick a project from `availableProjects` and retry, or — only for genuine placeholder issues — pass `--skip-project-check` AND document why in the report.
+
+You don't need to read any reference file to recover from either error.
 
 ## Metadata completeness — applies to BOTH paths
 
@@ -55,7 +61,7 @@ Every issue MUST be created with the maximum metadata that can reasonably be inf
 
 For every create, you MUST attempt to set:
 
-1. **Project** — never leave null unless you've checked and genuinely nothing fits. If the user didn't name one, follow the lookup precedence below.
+1. **Project** — never leave null unless you've checked and genuinely nothing fits. If the user didn't name one, follow the lookup precedence below. The CLI requires `--project` by default (teams with any projects); bare creates without it exit 2 with `ProjectValidationError` (read `availableProjects` from the JSON and retry, or use `--skip-project-check` with a documented reason).
 2. **Labels** — required labels per the team's policy (mandatory) PLUS any applicable optional labels you can infer (e.g. `Severity: *` if a bug has clear severity signals, `Source: *` if origin is obvious). More signal beats less.
 3. **Related issues** — every create runs `elnora-linear issues search "2-3 key terms" --limit 5`. If matches look topically related, call `elnora-linear relations create ENG-NEW ENG-OLD --type related` after creation. Do NOT auto-link as `duplicate` or `blocks` — those need user confirmation.
 4. **Priority + assignee + state + due date** — set whatever the user provided. Don't invent values, but don't drop signals either.
@@ -86,7 +92,7 @@ Use when ALL of these hold:
 - No compliance keywords: **incident, breach, vulnerability, CVE, pentest, onboarding, offboarding, access provision/revoke, audit, change request, risk assessment, vendor review, backup test, RCA, lessons learned**
 - No URL in the request
 
-Note: project is NOT required to be explicit — the workflow below will look it up.
+Note: project is NOT required to be explicit in the dispatch — the workflow below looks it up. But the CLI itself now requires `--project` on the create call by default; if your lookup turns up nothing, recover from the `ProjectValidationError` JSON (pick from `availableProjects`) instead of silently omitting.
 
 Workflow (typically 2–3 CLI calls):
 
@@ -108,7 +114,7 @@ Use when any fast-path condition fails (vague title, missing team/project/priori
 1. **Dupe search:** `elnora-linear issues search "2-3 key terms" --limit 10`. If matches, ASK whether to update existing (→ `linear-issue-updater`), make sub-issue (`--parent`), or new+link (`relations create`).
 2. **Compliance:** if any compliance keyword above, Read `references/template-index.md` → pick one template → Read `templates/<chosen>.md` → use as `--description` → set due date from `references/sla-reference.md` → apply matching `Template: *` label → route to your workspace's compliance team.
 3. **Team:** from user → keyword routing (Read `references/workspace-routing.md` if unclear) → fallback to your workspace's default team. If user specified a team, USE IT.
-4. **Project (mandatory):** Read `references/workspace-routing.md` first — keyword match against the Project Keywords table. If still unclear, Read `references/workspace-projects.md` for status/purpose details. Only fall back to `elnora-linear context --team "<Team>"` if the references are stale or the project might be brand new. ASK if still ambiguous. Projects are team-scoped; some span multiple teams — ASK which team. Never create without a project unless the user has explicitly said no project applies AND you've confirmed nothing fits.
+4. **Project (mandatory):** Read `references/workspace-routing.md` first — keyword match against the Project Keywords table. If still unclear, Read `references/workspace-projects.md` for status/purpose details. Only fall back to `elnora-linear context --team "<Team>"` if the references are stale or the project might be brand new. ASK if still ambiguous. Projects are team-scoped; some span multiple teams — ASK which team. Never create without a project unless the user has explicitly said no project applies AND you've confirmed nothing fits — in that case pass `--skip-project-check` and surface the reason in your final report.
 5. **State by project status:** `elnora-linear projects get "Project"` returns `currentStatus.recommendedIssueState` directly — pass it to `--state` verbatim. If `recommendedIssueState` is null, the response includes a `warning` field — surface it to the user and pick a different project.
 6. **Labels:** apply per the team's policy. For exotic labels, call `elnora-linear context --team "<Team>"` instead of reading any reference file.
 7. **Priority + assignee:** use `AskUserQuestion` if missing — never guess.
@@ -129,7 +135,7 @@ For full-path creates that need a structured description, Read `references/agent
 
 After creation, report from the create response JSON:
 - Issue identifier + URL
-- Team, **project** (or explicit "no project — nothing matched" if you genuinely couldn't find a fit), applied labels (required + any optional inferred)
+- Team, **project** (or explicit "no project — nothing matched, --skip-project-check passed because <reason>" if you genuinely couldn't find a fit), applied labels (required + any optional inferred)
 - Any relations created (and any relation candidates you saw but didn't auto-link)
 - Anything that was missing/skipped, so the parent knows what to follow up on
 
@@ -139,7 +145,7 @@ Keep it terse. The parent already knows what they asked for.
 
 - [ ] Searched dupes
 - [ ] Team matches user intent (not overridden by project name)
-- [ ] **Project set** (asked if ambiguous; left null only if confirmed nothing fits)
+- [ ] **Project set** (asked if ambiguous; if confirmed nothing fits, `--skip-project-check` passed with reason in report)
 - [ ] State matches project status
 - [ ] Required labels for team are present + any applicable optional labels (Severity, Source) inferred
 - [ ] Related-issue search done; topical matches linked as `related`

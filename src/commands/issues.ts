@@ -624,6 +624,10 @@ export function setupIssuesCommand(program: Command): void {
 		.command("batch-create <jsonFile>")
 		.description("Create multiple issues from a JSON array file (or '-' for stdin). Cap 50. N>=10 requires --yes.")
 		.option("--yes", "Confirm batch creation when N >= 10")
+		.option(
+			"--skip-project-check",
+			"Bypass the require-a-project rule for every input (use only for placeholder issues or workspaces that legitimately have unassigned issues)",
+		)
 		.action(
 			handleAsyncCommand(async (jsonFile: string, opts: Record<string, string | boolean>) => {
 				const inputs = readBatchInput(jsonFile);
@@ -638,6 +642,26 @@ export function setupIssuesCommand(program: Command): void {
 					);
 				}
 				const client = await getClient();
+
+				if (!opts.skipProjectCheck) {
+					const teamIds = [...new Set(inputs.map((i) => i.teamId).filter((id): id is string => Boolean(id)))];
+					const teams = await Promise.all(teamIds.map((id) => client.team(id)));
+					for (const team of teams) {
+						if (!team) continue;
+						const missing = inputs.filter((i) => i.teamId === team.id && !i.projectId);
+						if (missing.length === 0) continue;
+						await enforceTeamProjectPolicy({
+							client,
+							teamKey: team.key,
+							teamId: team.id,
+							teamName: team.name,
+							projectPassed: false,
+							skip: false,
+							retryCommand: `Add "projectId" to ${missing.length} input(s) for team "${team.name}", or re-run with --skip-project-check.`,
+						});
+					}
+				}
+
 				const payload = await client.createIssueBatch({ issues: inputs });
 				if (!payload.success) throw new CliError("Failed to create issue batch");
 				const issues = await payload.issues;
@@ -752,6 +776,10 @@ export function setupIssuesCommand(program: Command): void {
 		.option("--batch-size <n>", "Mutations per HTTP request (default 10)", "10")
 		.option("--dry-run", "Print the resolved op plan and exit without writing")
 		.option("--yes", "Confirm when ops count >= 25")
+		.option(
+			"--skip-project-check",
+			"Bypass the require-a-project rule for every create op (use only for placeholder issues or workspaces that legitimately have unassigned issues)",
+		)
 		.option("--stats", "Print rate-limit budget summary to stderr after the run")
 		.action(
 			handleAsyncCommand(async (opsFile: string, opts: Record<string, string | boolean>) => {
@@ -821,14 +849,14 @@ export function setupIssuesCommand(program: Command): void {
 						return out;
 					})(),
 					(async () => {
-						const out: Record<string, { id: string; key: string }> = {};
+						const out: Record<string, { id: string; key: string; name: string }> = {};
 						if (teamNames.size === 0) return out;
 						const conn = await client.teams({ first: 100 });
 						const all = await fetchAllNodes(conn);
 						for (const t of all) {
 							if (teamNames.has(t.name) || teamNames.has(t.key)) {
-								out[t.name] = { id: t.id, key: t.key };
-								out[t.key] = { id: t.id, key: t.key };
+								out[t.name] = { id: t.id, key: t.key, name: t.name };
+								out[t.key] = { id: t.id, key: t.key, name: t.name };
 							}
 						}
 						return out;
@@ -877,6 +905,35 @@ export function setupIssuesCommand(program: Command): void {
 				if (missingAssignees.length > 0) throw new NotFoundError("Users", missingAssignees.join(", "));
 				const missingStates = [...stateRequests].filter((k) => !stateMap[k]);
 				if (missingStates.length > 0) throw new NotFoundError("States", missingStates.join(", "));
+
+				if (!opts.skipProjectCheck) {
+					const violationsByTeamKey = new Map<string, number[]>();
+					for (let i = 0; i < opsList.length; i++) {
+						const op = opsList[i];
+						if (op.kind !== "create") continue;
+						if (op.skipProjectCheck === true) continue;
+						if (typeof op.project === "string") continue;
+						const teamSpec = (op.team as string | undefined) ?? defaultTeamKey;
+						const team = teamMap[teamSpec];
+						if (!team) continue;
+						if (!teamRequiresProject(team.key)) continue;
+						const arr = violationsByTeamKey.get(team.key) ?? [];
+						arr.push(i);
+						violationsByTeamKey.set(team.key, arr);
+					}
+					for (const [teamKey, opIndices] of violationsByTeamKey.entries()) {
+						const team = teamMap[teamKey];
+						await enforceTeamProjectPolicy({
+							client,
+							teamKey: team.key,
+							teamId: team.id,
+							teamName: team.name,
+							projectPassed: false,
+							skip: false,
+							retryCommand: `Add "project" to bulk-ops create op(s) #${opIndices.join(", #")} for team "${team.name}", or re-run with --skip-project-check.`,
+						});
+					}
+				}
 
 				const mutations: MutationOp[] = [];
 				const plan: Array<Record<string, unknown>> = [];
