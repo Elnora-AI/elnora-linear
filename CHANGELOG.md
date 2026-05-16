@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.0](https://github.com/Elnora-AI/elnora-linear/compare/v1.0.1...v1.1.0) (2026-05-16)
+
+
+### Features
+
+* parity with private linear-workspace plugin (Tracks A-D) ([#21](https://github.com/Elnora-AI/elnora-linear/issues/21)) ([cf3621b](https://github.com/Elnora-AI/elnora-linear/commit/cf3621b69c08a38821dd5bdb7aaf00f1120d5030))
+
+
+### Bug Fixes
+
+* pre-public hardening followup — curator, auth, command gates, batch docs ([#24](https://github.com/Elnora-AI/elnora-linear/issues/24)) ([457fd23](https://github.com/Elnora-AI/elnora-linear/commit/457fd23027c38e1a5cb8761003f992b5c9591e69))
+
 ## [1.0.1](https://github.com/Elnora-AI/elnora-linear/compare/v1.0.0...v1.0.1) (2026-05-16)
 
 
