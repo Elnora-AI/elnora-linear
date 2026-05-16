@@ -67,7 +67,7 @@ describe("runCurator", () => {
 
 	it("records an error for unimplemented source types but keeps going", async () => {
 		writeSignalSources(tmp, [
-			{ type: "github_commits", name: "future" },
+			{ type: "mcp_tool", name: "future", server: "s", tool: "t" },
 			{
 				type: "external_command",
 				name: "works",

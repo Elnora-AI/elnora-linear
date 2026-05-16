@@ -46,7 +46,7 @@ export async function runCurator(opts: CuratorOptions): Promise<CuratorReport> {
 			signals: [],
 		};
 		try {
-			const source = buildSignalSource(sourceConfig);
+			const source = buildSignalSource(sourceConfig, cfg);
 			const signals = await source.collect({ now });
 			entry.signalCount = signals.length;
 			entry.signals = signals;
