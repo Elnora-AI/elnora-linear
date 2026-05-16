@@ -7,7 +7,7 @@ Schema/template for documenting how your workspace's teams + projects + labels m
 | Team | Prefix | Use For |
 |------|--------|---------|
 | **Engineering** | ENG- | Customer-facing product code, features, bugs |
-| **Internal-Ops** | INT- | Internal: tooling, compliance docs, HR, access management |
+| **Operations** | OPS- | Internal: tooling, compliance docs, HR, access management |
 | **Security** | SEC- | CVE/vulnerability remediation, pentest findings, incidents (not security features) |
 | **Customer Success** | CUS- | Customer support, onboarding, client feedback |
 
@@ -17,13 +17,13 @@ Schema/template for documenting how your workspace's teams + projects + labels m
 |----------|----------|
 | feature, bug, build, implement, develop, code, product, ship, api, ui | **Engineering** |
 | vulnerability, CVE, CodeQL, dependabot, pentest finding, patch, security incident | **Security** |
-| internal tooling, internal infrastructure, dev environment, plugin, marketplace, cli setup | **Internal-Ops** |
-| document, record, audit, review completed, change approved, compliance | **Internal-Ops** |
-| onboarding, offboarding, access provision, access revoke, quarterly review | **Internal-Ops** |
-| change request, policy change, procedure change, ISMS change | **Internal-Ops** |
-| internal audit, management review, corrective action, risk assessment | **Internal-Ops** |
-| AI use case, AI capability scope, model family change, foundation model swap, AI governance | **Internal-Ops** |
-| hr, admin, process improvement, team operations, company operations | **Internal-Ops** |
+| internal tooling, internal infrastructure, dev environment, plugin, marketplace, cli setup | **Operations** |
+| document, record, audit, review completed, change approved, compliance | **Operations** |
+| onboarding, offboarding, access provision, access revoke, quarterly review | **Operations** |
+| change request, policy change, procedure change, ISMS change | **Operations** |
+| internal audit, management review, corrective action, risk assessment | **Operations** |
+| AI use case, AI capability scope, model family change, foundation model swap, AI governance | **Operations** |
+| hr, admin, process improvement, team operations, company operations | **Operations** |
 | customer, support request, user reported, client feedback, customer onboarding | **Customer Success** |
 
 **Default:** Engineering

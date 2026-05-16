@@ -251,8 +251,9 @@ export function setupWebhooksCommand(program: Command): void {
 					const msg = e instanceof Error ? e.message : String(e);
 					throw new ValidationError(`Cannot read body file: ${msg}`);
 				}
+				const replayCheckRequested = opts.timestampCheck !== false;
 				let timestamp: number | undefined;
-				if (opts.timestampCheck !== false) {
+				if (replayCheckRequested) {
 					try {
 						const parsed = JSON.parse(body.toString("utf-8"));
 						if (typeof parsed?.webhookTimestamp === "number") {
@@ -264,7 +265,11 @@ export function setupWebhooksCommand(program: Command): void {
 				}
 				const maxAgeMs = typeof opts.maxAgeMs === "string" ? Number(opts.maxAgeMs) : undefined;
 				const ok = verifyLinearWebhook({ rawBody: body, signature, secret, timestamp, maxAgeMs });
-				outputSuccess({ verified: ok, replayCheckApplied: typeof timestamp === "number" });
+				outputSuccess({
+					verified: ok,
+					replayCheckRequested,
+					replayCheckApplied: typeof timestamp === "number",
+				});
 			}),
 		);
 }

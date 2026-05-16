@@ -26,7 +26,7 @@
 
 * **ci:** switch release.yml from OIDC to NPM_TOKEN ([#18](https://github.com/Elnora-AI/elnora-linear/issues/18)) ([b67bcde](https://github.com/Elnora-AI/elnora-linear/commit/b67bcde6b59ba8919174d82c25494a70a7a97ce1))
 * **ci:** use org-level RELEASE_BOT_PAT for Release Please ([#14](https://github.com/Elnora-AI/elnora-linear/issues/14)) ([a83d6db](https://github.com/Elnora-AI/elnora-linear/commit/a83d6db75db141e2a6f81aff46574fac9f87628e))
-* **ci:** use per-repo RELEASE_TOKEN to match elnora-cli/mcp-server pattern ([#16](https://github.com/Elnora-AI/elnora-linear/issues/16)) ([2fe0cd5](https://github.com/Elnora-AI/elnora-linear/commit/2fe0cd5ed66ccaf304bc30fe5da1bec020e0f127))
+* **ci:** use per-repo RELEASE_TOKEN for Release Please ([#16](https://github.com/Elnora-AI/elnora-linear/issues/16)) ([2fe0cd5](https://github.com/Elnora-AI/elnora-linear/commit/2fe0cd5ed66ccaf304bc30fe5da1bec020e0f127))
 * remove internal staging path and sibling-repo reference ([#6](https://github.com/Elnora-AI/elnora-linear/issues/6)) ([b7a4053](https://github.com/Elnora-AI/elnora-linear/commit/b7a4053e30b9118cdb1f225e410066f4c19973ff))
 
 ## Changelog

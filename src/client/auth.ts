@@ -10,7 +10,8 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { createInterface } from "node:readline/promises";
+import { createInterface, type Interface } from "node:readline/promises";
+import { Writable } from "node:stream";
 
 export class AuthError extends Error {
 	constructor(message: string) {
@@ -68,12 +69,19 @@ export async function getApiKey(opts: GetApiKeyOptions = {}): Promise<string> {
 		throw new AuthError("Linear API key not found and stdin is not a TTY; cannot prompt. Set LINEAR_API_KEY env var.");
 	}
 	process.stdout.write("Linear API key not found.\nGet one at https://linear.app/settings/api\nPaste it here: ");
-	const rl = createInterface({ input: process.stdin, output: process.stdout });
+	// Suppress terminal echo so the pasted key doesn't appear in scrollback.
+	const muted = new Writable({
+		write(_chunk, _enc, cb) {
+			cb();
+		},
+	});
+	const rl: Interface = createInterface({ input: process.stdin, output: muted, terminal: true });
 	let response: string;
 	try {
 		response = (await rl.question("")).trim();
 	} finally {
 		rl.close();
+		process.stdout.write("\n");
 	}
 	const validated = validateKey(response);
 	saveKeyToEnvFile(validated, envFile);

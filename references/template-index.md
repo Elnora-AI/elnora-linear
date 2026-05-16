@@ -1,6 +1,6 @@
 # Template Index
 
-Compliance templates for an Internal-Ops / Security audit trail (ISO 27001 / SOC 2 style). Templates route to a compliance team for documentation; actual fixes go to your engineering or security teams.
+Compliance templates for an ISO 27001 / SOC 2 audit trail. Templates route to a compliance team for documentation; actual fixes go to your engineering or security teams.
 
 **Usage:** Match keywords below → load ONE template → check `sla-reference.md` for due date.
 

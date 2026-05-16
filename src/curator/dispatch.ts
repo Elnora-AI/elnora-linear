@@ -37,7 +37,7 @@ export interface DispatchResult {
 /**
  * Has this action been queued or applied within the debounce window?
  */
-function isDebounced(state: CuratorState, action: CuratorAction, now: Date): boolean {
+function isDebounced(state: CuratorState, action: CuratorAction, _now: Date): boolean {
 	if (action.tier === "HIGH") {
 		const key = debounceKey(action.issue_id, {
 			from: action.from_state,

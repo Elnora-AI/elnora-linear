@@ -2,7 +2,7 @@
 
 ## Quick Reference
 - **SLA:** 5-10 days
-- **Team:** the team responsible for AI governance in your workspace (typically Internal-Ops or Security)
+- **Team:** the team responsible for AI governance in your workspace (typically Operations, Compliance, or Security)
 - **Project:** AI Governance
 - **Scope:** Customer-facing AI capabilities only. Internal AI tooling (IDE assistants, agent-drafted ops emails, internal automations) is out of scope.
 

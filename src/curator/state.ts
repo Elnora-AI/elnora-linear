@@ -8,7 +8,16 @@
 // File-locked write — we open with a `.lock` sibling to make sure a second
 // curator run doesn't trample a first one mid-write.
 
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import {
+	closeSync,
+	existsSync,
+	mkdirSync,
+	openSync,
+	readFileSync,
+	renameSync,
+	unlinkSync,
+	writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { PendingQuestion } from "./snapshot.js";
@@ -122,8 +131,6 @@ export function saveState(state: CuratorState, opts: StateDirOptions = {}): void
 		try {
 			const releasedPath = `${lockPath}.released`;
 			if (existsSync(releasedPath)) {
-				// Use rename to /dev/null-equivalent by overwriting next time. Just unlink.
-				const { unlinkSync } = require("node:fs") as typeof import("node:fs");
 				unlinkSync(releasedPath);
 			}
 		} catch {}
