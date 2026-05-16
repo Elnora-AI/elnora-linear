@@ -41,7 +41,7 @@ For a guided multi-step install (verify → key → sync → smoke-test), point 
 - Title is positional: `elnora-linear issues create "Title" --team X`, not `--title "Title"`.
 - Flags: `--assignee` (not `--assign`), `--labels` (not `--label`), `--description` (not `--desc`).
 - `--labels` **replaces** — fetch current labels first if adding one.
-- `issues create` requires `--project` by default. If you omit it and the team has at least one project, the call exits 2 with `{availableProjects, suggestedRetry}` JSON — pick a project from `availableProjects` and re-run. Teams with zero projects pass through. To bypass (placeholder issues), pass `--skip-project-check`.
+- `issues create` requires `--project` by default. If you omit it and the team has at least one project, the call exits 2 with `{availableProjects, suggestedRetry}` JSON — pick a project from `availableProjects` and re-run. Teams with zero projects pass through. To bypass (placeholder issues), pass `--skip-project-check`. Same rule applies to `issues batch-create` and `issues bulk-ops` (create ops) — both honor `--skip-project-check`.
 - `issues create` also validates against the team's label-policy. On failure it exits 2 with `{missing, availableForPrefix, suggestedRetry}` JSON — re-run `suggestedRetry` verbatim.
 - Priority: `0=None, 1=Urgent, 2=High, 3=Normal, 4=Low`.
 
