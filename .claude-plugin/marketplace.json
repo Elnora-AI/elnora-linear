@@ -1,0 +1,19 @@
+{
+  "name": "elnora-linear",
+  "description": "Linear workspace for Claude Code — single-plugin marketplace.",
+  "owner": {
+    "name": "Elnora AI",
+    "email": "opensource@elnora.ai",
+    "url": "https://github.com/Elnora-AI"
+  },
+  "plugins": [
+    {
+      "name": "linear-workspace",
+      "description": "Linear issue management for Claude Code — search, bulk operations, intelligent agents, config-driven curator.",
+      "source": "./",
+      "version": "0.0.0",
+      "category": "productivity",
+      "tags": ["linear", "issue-tracker", "workflow", "automation"]
+    }
+  ]
+}
