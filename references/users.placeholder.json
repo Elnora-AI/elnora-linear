@@ -1,0 +1,6 @@
+{
+	"$schema": "../schemas/users.json",
+	"_placeholder": true,
+	"_populated_by": "linear-sync users",
+	"users": []
+}

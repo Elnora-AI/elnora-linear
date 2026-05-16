@@ -1,0 +1,6 @@
+{
+	"$schema": "../schemas/signal-sources.json",
+	"_placeholder": true,
+	"_populated_by": "linear-sync signal-sources",
+	"sources": []
+}

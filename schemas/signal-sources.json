@@ -1,0 +1,90 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://github.com/Elnora-AI/elnora-linear/blob/main/schemas/signal-sources.json",
+	"title": "Signal Sources",
+	"description": "Pluggable signal sources the curator consults when validating Linear issue state. Each source has a `type` that dispatches to a built-in collector (github_commits, github_pr, slack_messages, linear_issues) or generic extension point (external_command, mcp_tool).",
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"$schema": { "type": "string" },
+		"_placeholder": { "type": "boolean", "const": true },
+		"_example": { "type": "boolean", "const": true },
+		"_populated_by": { "type": "string" },
+		"sources": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"required": ["type", "name"],
+				"properties": {
+					"type": {
+						"type": "string",
+						"enum": [
+							"github_commits",
+							"github_pr",
+							"slack_messages",
+							"linear_issues",
+							"external_command",
+							"mcp_tool"
+						]
+					},
+					"name": {
+						"type": "string",
+						"description": "Human-readable identifier for this source in curator reports"
+					},
+					"enabled": { "type": "boolean", "default": true }
+				},
+				"allOf": [
+					{
+						"if": { "properties": { "type": { "const": "github_commits" } }, "required": ["type"] },
+						"then": {
+							"properties": {
+								"repos": { "type": "array", "items": { "type": "string" } },
+								"lookback_days": { "type": "integer", "minimum": 1, "maximum": 365 }
+							}
+						}
+					},
+					{
+						"if": { "properties": { "type": { "const": "github_pr" } }, "required": ["type"] },
+						"then": {
+							"properties": {
+								"repos": { "type": "array", "items": { "type": "string" } }
+							}
+						}
+					},
+					{
+						"if": { "properties": { "type": { "const": "slack_messages" } }, "required": ["type"] },
+						"then": {
+							"properties": {
+								"channels": { "type": "array", "items": { "type": "string" } },
+								"match_patterns": { "type": "array", "items": { "type": "string" } }
+							}
+						}
+					},
+					{
+						"if": { "properties": { "type": { "const": "external_command" } }, "required": ["type"] },
+						"then": {
+							"required": ["command"],
+							"properties": {
+								"command": { "type": "string", "minLength": 1 },
+								"parse_as": { "type": "string", "enum": ["json", "lines", "regex"] },
+								"issue_match_field": { "type": "string" }
+							}
+						}
+					},
+					{
+						"if": { "properties": { "type": { "const": "mcp_tool" } }, "required": ["type"] },
+						"then": {
+							"required": ["server", "tool"],
+							"properties": {
+								"server": { "type": "string" },
+								"tool": { "type": "string" },
+								"args": { "type": "object" }
+							}
+						}
+					}
+				]
+			}
+		}
+	},
+	"required": ["sources"]
+}

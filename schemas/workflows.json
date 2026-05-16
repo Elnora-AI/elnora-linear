@@ -1,0 +1,61 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://github.com/Elnora-AI/elnora-linear/blob/main/schemas/workflows.json",
+	"title": "Workflows",
+	"description": "Linear workflow states (fetched from the API) plus user-defined curator rules. Rules are tiered: high = auto-apply, medium = ask the assignee, low = surface in summary report only.",
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"$schema": { "type": "string" },
+		"_placeholder": { "type": "boolean", "const": true },
+		"_example": { "type": "boolean", "const": true },
+		"_populated_by": { "type": "string" },
+		"states": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"name": { "type": "string", "minLength": 1 },
+					"type": {
+						"type": "string",
+						"enum": ["backlog", "unstarted", "started", "completed", "canceled", "triage"]
+					}
+				},
+				"required": ["name", "type"]
+			}
+		},
+		"rules": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": ["id", "tier", "description", "when", "action"],
+				"properties": {
+					"id": {
+						"type": "string",
+						"pattern": "^[a-z][a-z0-9-]*$",
+						"description": "Stable rule identifier surfaced in audit logs"
+					},
+					"tier": {
+						"type": "string",
+						"enum": ["high", "medium", "low"],
+						"description": "high = auto-apply; medium = ask assignee; low = report only"
+					},
+					"description": { "type": "string", "minLength": 1 },
+					"when": {
+						"type": "object",
+						"description": "Match conditions; the curator evaluates these against signals and issue state",
+						"additionalProperties": true
+					},
+					"action": {
+						"type": "object",
+						"description": "What to do when the rule matches",
+						"additionalProperties": true
+					}
+				}
+			}
+		}
+	},
+	"required": ["states", "rules"]
+}

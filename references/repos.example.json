@@ -1,0 +1,21 @@
+{
+	"$schema": "../schemas/repos.json",
+	"_example": true,
+	"repos": [
+		{
+			"name": "backend",
+			"org": "example-org",
+			"local_path": "~/code/backend",
+			"default_branch": "main"
+		},
+		{
+			"name": "frontend",
+			"org": "example-org"
+		},
+		{
+			"name": "infrastructure",
+			"org": "example-org",
+			"default_branch": "main"
+		}
+	]
+}

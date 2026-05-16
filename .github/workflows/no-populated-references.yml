@@ -1,0 +1,24 @@
+name: No Populated References
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: no-populated-references-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Check references/*.json carry _placeholder or _example
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+      - run: node scripts/check-no-populated-references.mjs

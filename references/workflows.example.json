@@ -1,0 +1,44 @@
+{
+	"$schema": "../schemas/workflows.json",
+	"_example": true,
+	"states": [
+		{ "name": "Backlog", "type": "backlog" },
+		{ "name": "Todo", "type": "unstarted" },
+		{ "name": "In Progress", "type": "started" },
+		{ "name": "Done", "type": "completed" },
+		{ "name": "Canceled", "type": "canceled" }
+	],
+	"rules": [
+		{
+			"id": "merged-pr-closes-issue",
+			"tier": "high",
+			"description": "Auto-close issues whose ID appears in a merged PR title or commit message",
+			"when": {
+				"signal_type": "github_pr",
+				"signal_state": "MERGED",
+				"current_issue_state": ["Todo", "In Progress"]
+			},
+			"action": { "set_state": "Done" }
+		},
+		{
+			"id": "stale-in-progress",
+			"tier": "medium",
+			"description": "Ask assignee if a 14-day-inactive In Progress issue is still active",
+			"when": {
+				"current_issue_state": ["In Progress"],
+				"inactive_days_minimum": 14
+			},
+			"action": { "ask_assignee": "still active?" }
+		},
+		{
+			"id": "stale-todo",
+			"tier": "low",
+			"description": "Surface 30-day-inactive Todo issues in the next summary report",
+			"when": {
+				"current_issue_state": ["Todo"],
+				"inactive_days_minimum": 30
+			},
+			"action": { "report_only": true }
+		}
+	]
+}

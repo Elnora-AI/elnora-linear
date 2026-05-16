@@ -1,0 +1,8 @@
+{
+	"$schema": "../schemas/slack.json",
+	"_placeholder": true,
+	"_populated_by": "linear-sync slack",
+	"channels": [],
+	"allowed_channels": [],
+	"allowed_dm_users": []
+}

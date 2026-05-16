@@ -1,0 +1,21 @@
+{
+	"$schema": "../schemas/teams.json",
+	"_example": true,
+	"teams": [
+		{
+			"key": "ENG",
+			"name": "Engineering",
+			"description": "Core product engineering",
+			"default_project": "Backend Platform"
+		},
+		{
+			"key": "OPS",
+			"name": "Operations",
+			"description": "Internal tooling, infra, and on-call"
+		},
+		{
+			"key": "SEC",
+			"name": "Security"
+		}
+	]
+}

@@ -1,0 +1,45 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://github.com/Elnora-AI/elnora-linear/blob/main/schemas/slack.json",
+	"title": "Slack",
+	"description": "Slack channels + outbound-routing allowlists used by the curator. Allowlists are an intentional security model: the curator never posts to channels or DMs not explicitly listed here.",
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"$schema": { "type": "string" },
+		"_placeholder": { "type": "boolean", "const": true },
+		"_example": { "type": "boolean", "const": true },
+		"_populated_by": { "type": "string" },
+		"channels": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"id": {
+						"type": "string",
+						"pattern": "^C[A-Z0-9]+$",
+						"description": "Slack channel ID"
+					},
+					"name": {
+						"type": "string",
+						"description": "Channel name without the leading #"
+					},
+					"purpose": { "type": "string" }
+				},
+				"required": ["id", "name"]
+			}
+		},
+		"allowed_channels": {
+			"type": "array",
+			"items": { "type": "string", "pattern": "^C[A-Z0-9]+$" },
+			"description": "Channel IDs the curator is permitted to post in. Posts to unlisted channels are silently dropped."
+		},
+		"allowed_dm_users": {
+			"type": "array",
+			"items": { "type": "string" },
+			"description": "User keys (resolving via users.json to slack_user_id) the curator is permitted to DM."
+		}
+	},
+	"required": ["channels", "allowed_channels", "allowed_dm_users"]
+}

@@ -1,0 +1,18 @@
+{
+	"$schema": "../schemas/users.json",
+	"_example": true,
+	"users": [
+		{
+			"key": "alice",
+			"name": "Alice Smith",
+			"email": "alice@example.com",
+			"linear_user_id": "00000000-0000-0000-0000-000000000001",
+			"slack_user_id": "U000000001"
+		},
+		{
+			"key": "bob",
+			"name": "Bob Johnson",
+			"email": "bob@example.com"
+		}
+	]
+}

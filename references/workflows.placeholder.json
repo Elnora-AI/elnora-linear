@@ -1,0 +1,7 @@
+{
+	"$schema": "../schemas/workflows.json",
+	"_placeholder": true,
+	"_populated_by": "linear-sync workflows",
+	"states": [],
+	"rules": []
+}

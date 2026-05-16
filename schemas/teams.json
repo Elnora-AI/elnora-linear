@@ -1,0 +1,43 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://github.com/Elnora-AI/elnora-linear/blob/main/schemas/teams.json",
+	"title": "Teams",
+	"description": "Linear teams the plugin operates on. Populated by `linear-sync teams` from the Linear API.",
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"$schema": { "type": "string" },
+		"_placeholder": { "type": "boolean", "const": true },
+		"_example": { "type": "boolean", "const": true },
+		"_populated_by": { "type": "string" },
+		"teams": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"key": {
+						"type": "string",
+						"pattern": "^[A-Z]{2,8}$",
+						"description": "Linear team key / issue prefix, e.g. ENG"
+					},
+					"name": {
+						"type": "string",
+						"minLength": 1,
+						"description": "Human-readable team name from Linear"
+					},
+					"description": {
+						"type": "string",
+						"description": "Optional one-line description"
+					},
+					"default_project": {
+						"type": "string",
+						"description": "Optional default project name for new issues on this team"
+					}
+				},
+				"required": ["key", "name"]
+			}
+		}
+	},
+	"required": ["teams"]
+}

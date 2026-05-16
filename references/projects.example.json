@@ -1,0 +1,26 @@
+{
+	"$schema": "../schemas/projects.json",
+	"_example": true,
+	"projects": [
+		{
+			"name": "Backend Platform",
+			"team": "ENG",
+			"lead": "alice",
+			"priority": "High",
+			"status": "In Progress",
+			"description": "Core backend services and shared infrastructure"
+		},
+		{
+			"name": "Q3 Compliance Audit",
+			"team": "SEC",
+			"priority": "Urgent",
+			"status": "Planned",
+			"sla": "30 days"
+		},
+		{
+			"name": "Internal Tooling",
+			"team": "OPS",
+			"status": "Backlog"
+		}
+	]
+}

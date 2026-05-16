@@ -1,0 +1,10 @@
+{
+	"$schema": "../schemas/slack.json",
+	"_example": true,
+	"channels": [
+		{ "id": "C000000ENG", "name": "engineering", "purpose": "default curator destination" },
+		{ "id": "C000000GEN", "name": "general" }
+	],
+	"allowed_channels": ["C000000ENG"],
+	"allowed_dm_users": ["alice", "bob"]
+}
