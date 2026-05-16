@@ -126,9 +126,13 @@ Gates:
   silently — rerun the individual `elnora-linear sync <name>` and surface
   the error.
 - The remaining files (`label-policy`, `slack`, `repos`, `signal-sources`)
-  WILL report `"placeholder"` at this point. That's expected — they're only
-  populated if the user opts into the curator in Step 4. Don't treat their
-  placeholder status as a failure.
+  WILL report `"placeholder"` at this point. That's expected — none are
+  auto-discoverable from the Linear API. `slack`/`repos`/`signal-sources`
+  populate in Step 4 (curator opt-in). For `label-policy`, proactively offer:
+  "Want me to set up required-label rules per team? I'll list your current
+  team labels and you can pick which ones should be mandatory." Then write
+  `~/.config/elnora-linear/label-policy.json` using
+  `references/label-policy.example.json` as the shape reference.
 
 ## Step 4 — Curator opt-in
 
@@ -143,10 +147,46 @@ Ask the user, verbatim:
 
 If the user says **no**, skip to Step 5.
 
-If the user says **yes**, walk these four files in order. For each one:
-copy the example, ask the user the minimum questions to populate it, write
-the result, and validate with `sync verify`. Do not write all four in one
-shot — confirm each before moving on.
+If the user says **yes**, first collect the LLM key (4-pre), then walk the
+four config files in order (4a–4d). For each file: copy the example, ask the
+user the minimum questions to populate it, write the result, and validate
+with `sync verify`. Do not write all four in one shot — confirm each before
+moving on.
+
+### 4-pre. `ANTHROPIC_API_KEY` — the LLM that proposes Linear actions
+
+The curator collects signals, hands them to Claude to propose state changes,
+and dispatches the safe ones. Without `ANTHROPIC_API_KEY` the curator silently
+drops into `--collect-only` diagnostic mode (no LLM call, no mutations) — the
+user will wonder for days why HIGH-tier actions aren't applying. Collect it
+now, before walking the file-config steps.
+
+Tell the user, verbatim:
+
+> The curator uses Claude to read your signals and propose Linear changes.
+> I need an Anthropic API key. Open https://console.anthropic.com/settings/keys
+> in your browser, click **Create Key**, copy the value, and paste it here.
+> The key starts with `sk-ant-`.
+
+When the user pastes it, set the env var AND append it to the same `.env`
+file the Linear key lives in (the CLI auto-loads that file on startup, so the
+key survives the next shell):
+
+```sh
+export ANTHROPIC_API_KEY="<paste>"
+umask 077
+printf 'ANTHROPIC_API_KEY=%s\n' "$ANTHROPIC_API_KEY" >> ~/.config/elnora-linear/.env
+chmod 600 ~/.config/elnora-linear/.env
+```
+
+Gates:
+- The value must start with `sk-ant-`. If it doesn't, ask the user to paste
+  again — they may have grabbed the wrong field.
+- `stat` on `~/.config/elnora-linear/.env` must still report mode `600` after
+  the append. Re-`chmod 600` if not.
+- If the user refuses (e.g. "I'll add this later"), note loudly that the
+  curator will run in `--collect-only` mode until they set the key, and that
+  HIGH-tier actions will NOT auto-apply. Then continue.
 
 ### 4a. `label-policy.json` — required labels per team
 
@@ -167,29 +207,161 @@ If the user has no opinion, replace the example's `policies` object with
 `{}` (empty) and continue. Don't invent policies for teams the user hasn't
 mentioned.
 
-### 4b. `slack.json` — channels + curator DM targets
+### 4b. `slack.json` — channels for the `slack_messages` signal
 
-Only needed if the user wants Slack signals or wants curator state-change
-DMs. Ask:
+Only needed if the user wants the curator to read Slack messages. (Curator
+DMs back to a user are config-scaffolded but not wired up yet — don't
+promise them.) Ask:
 
-> Do you want the curator to read Slack messages or send you DMs when it
-> proposes a state change? If yes, I'll need a Slack bot token and the
-> channel IDs to watch.
+> Do you want the curator to read Slack channel messages? If yes, I'll
+> walk you through creating a Slack app, then collect the bot token and
+> the channel IDs to watch.
 
-If no, skip this file (leave it as placeholder). If yes, populate it from
-`references/slack.example.json` and ask the user only for: bot token,
-channel IDs, and DM target user ID.
+If no, skip this file (leave it as placeholder).
+
+If yes, walk the user through these steps in order — confirm each one
+before moving on:
+
+1. **Create the app.** Tell the user to open
+   https://api.slack.com/apps → **Create New App** → **From scratch**,
+   name it `elnora-linear` (or anything they prefer), and pick their
+   workspace. Wait for them to confirm.
+
+2. **Add scopes.** Sidebar → **OAuth & Permissions** → scroll to
+   **Bot Token Scopes** → add `channels:history` (public channels) and
+   `groups:history` (private channels). Skip the latter if they only
+   need public channels.
+
+3. **Install the app.** Same page, scroll up → **Install to Workspace**
+   → approve. The page now shows a **Bot User OAuth Token** starting
+   with `xoxb-`.
+
+4. **Collect and verify the token.** Ask the user to paste it. Then:
+
+   ```sh
+   export SLACK_TOKEN="<paste>"
+   curl -sS -H "Authorization: Bearer $SLACK_TOKEN" \
+     https://slack.com/api/auth.test
+   ```
+
+   Gate: response JSON contains `"ok": true` and shows the user's
+   workspace + bot user. If `"ok": false`, surface the `error` field
+   (commonly `invalid_auth` — wrong token, ask for it again; or
+   `missing_scope` — they didn't add the scopes from step 2).
+
+5. **Invite the bot to channels.** Ask the user which channels the
+   curator should watch. For each, they need to run `/invite @<app-name>`
+   inside that Slack channel. The bot can only read history for
+   channels it's a member of. Wait for confirmation before continuing.
+
+6. **Collect channel IDs.** Ask the user, for each invited channel, to
+   click the channel name at the top in Slack, scroll the details panel
+   to the bottom, and copy the ID (format `C0123ABCDEF` — not the
+   `#name`). Collect one ID per channel.
+
+7. **Persist the token** to the env file alongside `LINEAR_API_KEY` and
+   `ANTHROPIC_API_KEY` (the CLI auto-loads this file at startup, so the
+   token survives the next shell):
+
+   ```sh
+   printf 'SLACK_TOKEN=%s\n' "$SLACK_TOKEN" >> ~/.config/elnora-linear/.env
+   chmod 600 ~/.config/elnora-linear/.env
+   ```
+
+   Re-verify the mode is still `600`.
+
+8. **Write `slack.json`.** Copy the example and replace its `channels`
+   array with the user's real IDs/names. `allowed_channels` should
+   default to the same list — the curator uses it as the watch set when
+   a signal source doesn't specify channels explicitly.
+
+   ```sh
+   cp "$(npm root -g)/@elnora-ai/linear/references/slack.example.json" \
+      ~/.config/elnora-linear/slack.json
+   ```
+
+   Then edit `~/.config/elnora-linear/slack.json` to look like:
+
+   ```json
+   {
+     "channels": [
+       { "id": "C0123ABCDEF", "name": "engineering" }
+     ],
+     "allowed_channels": ["C0123ABCDEF"],
+     "allowed_dm_users": []
+   }
+   ```
+
+   Leave `allowed_dm_users` as `[]` — the DM-back path isn't
+   implemented yet, so populating it does nothing.
+
+Gate: re-run `elnora-linear sync verify --output json`. `slack` should
+now report `status: "populated"`.
 
 ### 4c. `repos.json` — GitHub repos the curator watches
 
-Ask:
+This config feeds two signal sources with different requirements:
 
-> Which GitHub repos should the curator poll for commits and PRs? Give me
-> `owner/name` slugs (e.g. `Elnora-AI/elnora-linear`).
+- **`github_pr`** shells out to `gh pr list`, so the `gh` CLI must be
+  installed AND authenticated.
+- **`github_commits`** shells out to `git log` against a LOCAL clone of each
+  repo, so every entry must include a `local_path` pointing at an existing
+  directory on this machine. Without it the source emits one warning per
+  repo and skips them all.
+
+**First, verify `gh`.** Run, in order:
+
+```sh
+command -v gh >/dev/null && gh --version
+gh auth status
+```
+
+Gates:
+- `gh --version` exits 0. If `command -v gh` is empty, tell the user the
+  `github_pr` source can't work without it — point them at
+  https://cli.github.com/ to install, then stop and wait. Do NOT try to
+  install it yourself.
+- `gh auth status` exits 0 and reports `Logged in to github.com`. If it
+  prints `You are not logged into any GitHub hosts`, tell the user
+  verbatim: `Run "gh auth login" in your terminal, pick GitHub.com, then
+  tell me when you're done.` Wait, then re-run `gh auth status` to confirm.
+  If `gh auth status` reports the wrong host (e.g. an enterprise GHE
+  instance and the repos are on github.com, or vice-versa), surface that
+  too — the source will 404 silently otherwise.
+
+**Then, collect repos.** Ask:
+
+> Which GitHub repos should the curator poll for commits and PRs? For each
+> one I need two things:
+>   1. The `owner/name` slug (e.g. `Elnora-AI/elnora-linear`).
+>   2. The path to a local clone on this machine (e.g.
+>      `~/code/elnora-linear`). The curator uses `git log` against it for
+>      the commits signal — without a local clone, only the PR signal works
+>      for that repo.
+
+For each repo the user names, verify the local clone before writing:
+
+```sh
+test -d "<expanded-path>/.git" && \
+  git -C "<expanded-path>" rev-parse --is-inside-work-tree
+```
+
+Gates:
+- The path must exist AND be a git working tree. If `test -d` fails, ask
+  the user to clone it first (`git clone git@github.com:<owner>/<name>.git
+  <path>`) — do NOT clone on their behalf without consent.
+- If the user only has a remote repo and doesn't want to clone, write the
+  entry WITHOUT `local_path`. The `github_pr` source will still work for it;
+  the `github_commits` source will skip it with a warning. Tell the user
+  that's what will happen so they aren't surprised.
+- Expand `~` to `$HOME` before writing — `existsSync` on a literal `~/...`
+  string will fail at runtime.
 
 Write the user's list to `~/.config/elnora-linear/repos.json` in the schema
-shown in `references/repos.example.json`. Do not include repos the user
-didn't name.
+shown in `references/repos.example.json`. Each entry needs `name` (repo
+name, no slash) and `org` (the owner), plus `local_path` when a clone is
+available and `default_branch` if the user volunteered it. Do not include
+repos the user didn't name, and do not invent `local_path` values.
 
 ### 4d. `signal-sources.json` — curator inputs
 
@@ -231,9 +403,26 @@ Gates:
   elnora-linear curator-run --collect-only
   ```
 
-  This is diagnostic-mode only (no LLM call, no mutations). Gate: exit 0 and
-  the output names the signal sources you populated in 4d. If a source you
-  enabled doesn't appear, the file is malformed — surface it.
+  This is diagnostic-mode only (no LLM call, no mutations). Gates:
+  - Exit 0 and the output names the signal sources you populated in 4d. If
+    a source you enabled doesn't appear, the file is malformed — surface it.
+  - Scan the collected signals for `warning:` payloads. If a `github_pr`
+    source warns about `gh pr list failed` for every repo, `gh` auth
+    regressed since Step 4c — re-check `gh auth status`. If a `github_commits`
+    source warns `has no local_path (or path does not exist)` for a repo
+    you populated, the path in `repos.json` is wrong or the clone moved —
+    fix it before declaring done.
+  - If the user provided `ANTHROPIC_API_KEY` in Step 4-pre, also run once
+    WITHOUT `--collect-only`:
+
+    ```sh
+    elnora-linear curator-run --dry-run
+    ```
+
+    Gate: the report's `pipeline.ranLlm` field is `true`. If it reports
+    `skippedReason: "ANTHROPIC_API_KEY not set"`, the env file didn't load
+    — confirm the key is on its own line in `~/.config/elnora-linear/.env`
+    and re-run.
 
 ## Step 6 — Handoff summary
 
@@ -274,10 +463,17 @@ finish it before reporting done.
    not).
 6. If the user opted into the curator: every file they said yes to in
    Step 4 reports `status: "populated"`, and
-   `elnora-linear curator-run --collect-only` exits 0.
-7. You have NOT written anything to `~/.config/elnora-linear/` that the user
+   `elnora-linear curator-run --collect-only` exits 0 with no
+   `warning:` payloads for sources the user enabled.
+7. If the user provided `ANTHROPIC_API_KEY` in Step 4-pre: a one-off
+   `elnora-linear curator-run --dry-run` report shows
+   `pipeline.ranLlm: true` (not `skippedReason: "ANTHROPIC_API_KEY not set"`).
+8. If the user populated `repos.json`: `gh auth status` exits 0 in the
+   same shell that will run the curator, AND every entry with a
+   `local_path` points at a real `.git` working tree.
+9. You have NOT written anything to `~/.config/elnora-linear/` that the user
    didn't explicitly ask for. The curator config files for opted-out
    features remain placeholder.
 
-When all seven pass, print `LINEAR_WORKSPACE_READY` on its own line so the
-user (and any wrapping harness) can grep for it.
+When all applicable items pass, print `LINEAR_WORKSPACE_READY` on its own
+line so the user (and any wrapping harness) can grep for it.

@@ -97,6 +97,28 @@ Every applied action is appended to `~/.config/elnora-linear/state/curator-repor
 
 Recurring schedule: see [`docs/scheduling.md`](docs/scheduling.md) for launchd, systemd, and Task Scheduler templates.
 
+#### Slack setup (for the `slack_messages` signal)
+
+The curator reads channel history via Slack's `conversations.history` API. To wire it up:
+
+1. **Create a Slack app.** Go to [api.slack.com/apps](https://api.slack.com/apps) → **Create New App** → **From scratch**. Name it (e.g. `elnora-linear`) and pick your workspace.
+2. **Add bot token scopes.** Sidebar → **OAuth & Permissions** → **Bot Token Scopes** → add `channels:history` (public channels) and `groups:history` (private channels).
+3. **Install the app** to your workspace from the top of the same page and approve.
+4. **Copy the Bot User OAuth Token** (starts with `xoxb-`) and export it:
+   ```sh
+   export SLACK_TOKEN=xoxb-...
+   ```
+5. **Invite the bot to each channel** you want watched. In Slack, open the channel and run `/invite @your-app-name`. The bot only sees channels it's a member of.
+6. **Copy each channel's ID.** In Slack, click the channel name at the top → scroll to the bottom of the details panel → copy the ID (format `C0123ABCDEF`). Add them to `~/.config/elnora-linear/slack.json`:
+   ```json
+   {
+     "channels": [{ "id": "C0123ABCDEF", "name": "engineering" }],
+     "allowed_channels": ["C0123ABCDEF"]
+   }
+   ```
+
+Verify with `elnora-linear curator-run --collect-only` — collected Slack signals should appear in the output.
+
 ### Compliance templates
 [`templates/`](templates/) ships 23 Linear issue templates for SOC 2 / change management / RCA / vulnerability / access provisioning / vendor risk / AI capability workflows. `elnora-linear templates list` and `templates sync` push them to Linear.
 
@@ -197,6 +219,18 @@ Escape hatches for the auto-sync (any one disables it):
 - `ELNORA_LINEAR_SKIP_POSTINSTALL=1`
 - `CI=true` (auto-detected on most CI systems)
 - local (non-global) installs — only `npm install -g` triggers the sync
+
+**What the sync does and doesn't cover:**
+
+| File | Populated by | Why |
+|---|---|---|
+| `teams.json`, `projects.json`, `users.json`, `workflows.json` | auto-sync | Discoverable from the Linear API |
+| `label-policy.json` | you (ask your agent) | Which labels are *required* per team is a policy choice, not data |
+| `slack.json` | you (ask your agent) | Needs your channel IDs + outbound allowlist |
+| `repos.json` | you (ask your agent) | Needs the GitHub repos you want the curator to watch |
+| `signal-sources.json` | you (ask your agent) | Curator inputs — opt-in per source |
+
+The four manual files are only needed if you want the curator. To finish setup, just say to your agent: **"set up my curator config"** — it'll walk through each file using the populated examples in `references/*.example.json` as templates.
 
 ---
 
