@@ -29,14 +29,6 @@
 			"command": "ci-cli list-failing-builds --json",
 			"parse_as": "json",
 			"issue_match_field": "linear_issue_id"
-		},
-		{
-			"type": "mcp_tool",
-			"name": "stripe-payment-failures",
-			"enabled": false,
-			"server": "stripe-cli",
-			"tool": "list_failed_payments",
-			"args": { "lookback_hours": 24 }
 		}
 	]
 }

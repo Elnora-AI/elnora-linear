@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { _internal, AuthError, getApiKey } from "../../src/client/auth.js";
+import { _internal, AuthError, getApiKey, loadEnvFile } from "../../src/client/auth.js";
 
 let tmp: string;
 let envFile: string;
@@ -91,5 +91,67 @@ describe("_internal helpers", () => {
 	it("readKeyFromEnvFile parses LINEAR_API_KEY line, ignoring others", () => {
 		writeFileSync(envFile, "# comment\nOTHER=foo\nLINEAR_API_KEY=lin_api_xyz\n");
 		expect(_internal.readKeyFromEnvFile(envFile)).toBe("lin_api_xyz");
+	});
+
+	it("parseEnvFile returns every KEY=value pair, stripping quotes and comments", () => {
+		writeFileSync(
+			envFile,
+			[
+				"# header comment",
+				"",
+				"LINEAR_API_KEY=lin_api_xyz",
+				'ANTHROPIC_API_KEY="sk-ant-quoted"',
+				"SLACK_TOKEN='xoxb-quoted'",
+				"INVALID LINE NO EQUALS",
+			].join("\n"),
+		);
+		const parsed = _internal.parseEnvFile(envFile);
+		expect(parsed).toEqual({
+			LINEAR_API_KEY: "lin_api_xyz",
+			ANTHROPIC_API_KEY: "sk-ant-quoted",
+			SLACK_TOKEN: "xoxb-quoted",
+		});
+	});
+
+	it("parseEnvFile returns empty object when file missing", () => {
+		expect(_internal.parseEnvFile(join(tmp, "nope.env"))).toEqual({});
+	});
+});
+
+describe("loadEnvFile", () => {
+	const trackedKeys = ["ANTHROPIC_API_KEY", "SLACK_TOKEN", "ELNORA_LINEAR_TEST_VAR"];
+	const originals: Record<string, string | undefined> = {};
+
+	beforeEach(() => {
+		for (const k of trackedKeys) {
+			originals[k] = process.env[k];
+			delete process.env[k];
+		}
+	});
+
+	afterEach(() => {
+		for (const k of trackedKeys) {
+			if (originals[k] === undefined) delete process.env[k];
+			else process.env[k] = originals[k];
+		}
+	});
+
+	it("populates missing process.env entries from the env file", () => {
+		writeFileSync(envFile, "ANTHROPIC_API_KEY=sk-ant-from-file\nSLACK_TOKEN=xoxb-from-file\n");
+		loadEnvFile(envFile);
+		expect(process.env.ANTHROPIC_API_KEY).toBe("sk-ant-from-file");
+		expect(process.env.SLACK_TOKEN).toBe("xoxb-from-file");
+	});
+
+	it("never overwrites a value that is already set in process.env", () => {
+		process.env.ANTHROPIC_API_KEY = "sk-ant-from-shell";
+		writeFileSync(envFile, "ANTHROPIC_API_KEY=sk-ant-from-file\n");
+		loadEnvFile(envFile);
+		expect(process.env.ANTHROPIC_API_KEY).toBe("sk-ant-from-shell");
+	});
+
+	it("is a no-op when the env file does not exist", () => {
+		loadEnvFile(join(tmp, "absent.env"));
+		expect(process.env.ELNORA_LINEAR_TEST_VAR).toBeUndefined();
 	});
 });

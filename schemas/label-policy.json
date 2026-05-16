@@ -60,7 +60,7 @@
 						},
 						"requiresProject": {
 							"type": "boolean",
-							"description": "If true, every new issue on this team must have a project set."
+							"description": "If true (default), every new issue on this team must have a project set; `issues create` exits 2 with a structured ProjectValidationError when --project is omitted. Set false to allow issues without a project. Teams with zero projects available auto-pass regardless. Bypass per-call with --skip-project-check."
 						}
 					}
 				}

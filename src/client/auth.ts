@@ -44,6 +44,41 @@ function readKeyFromEnvFile(path: string): string | null {
 	return null;
 }
 
+// Parse a `KEY=value` env file and return the entries. Skips blank lines and
+// `#` comments. Strips surrounding single/double quotes from values. Does NOT
+// mutate `process.env`.
+function parseEnvFile(path: string): Record<string, string> {
+	if (!existsSync(path)) return {};
+	const out: Record<string, string> = {};
+	const content = readFileSync(path, "utf8");
+	for (const rawLine of content.split("\n")) {
+		const line = rawLine.trim();
+		if (!line || line.startsWith("#")) continue;
+		const match = line.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+		if (!match) continue;
+		const [, key, rawValue] = match;
+		const value = rawValue.trim().replace(/^["']|["']$/g, "");
+		out[key] = value;
+	}
+	return out;
+}
+
+/**
+ * Load entries from `~/.config/elnora-linear/.env` (or the override path) into
+ * `process.env`, without overwriting variables that are already set. Used at
+ * CLI startup so secrets persisted to the env file — like `ANTHROPIC_API_KEY`
+ * and `SLACK_TOKEN` — are available to downstream code that reads
+ * `process.env` directly. Safe to call multiple times.
+ */
+export function loadEnvFile(path: string = DEFAULT_ENV_FILE): void {
+	const entries = parseEnvFile(path);
+	for (const [key, value] of Object.entries(entries)) {
+		if (process.env[key] === undefined) {
+			process.env[key] = value;
+		}
+	}
+}
+
 function saveKeyToEnvFile(key: string, path: string = DEFAULT_ENV_FILE): void {
 	mkdirSync(dirname(path), { recursive: true });
 	writeFileSync(path, `LINEAR_API_KEY=${key}\n`, { mode: 0o600 });
@@ -93,4 +128,4 @@ export async function getApiKey(opts: GetApiKeyOptions = {}): Promise<string> {
 }
 
 // Exported for testing.
-export const _internal = { validateKey, readKeyFromEnvFile, saveKeyToEnvFile, DEFAULT_ENV_FILE };
+export const _internal = { validateKey, readKeyFromEnvFile, saveKeyToEnvFile, parseEnvFile, DEFAULT_ENV_FILE };

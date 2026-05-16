@@ -9,6 +9,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command, Option } from "commander";
+import { loadEnvFile } from "./client/auth.js";
 import { setupAgentActivitiesCommand } from "./commands/agent-activities.js";
 import { setupAgentSessionsCommand } from "./commands/agent-sessions.js";
 import { setupAttachmentsCommand } from "./commands/attachments.js";
@@ -52,6 +53,11 @@ import { setupTemplatesCommand } from "./commands/templates.js";
 import { setupUsersCommand } from "./commands/users.js";
 import { setupViewsCommand } from "./commands/views.js";
 import { setupWebhooksCommand } from "./commands/webhooks.js";
+
+// Hydrate process.env from ~/.config/elnora-linear/.env before any subcommand
+// reads ANTHROPIC_API_KEY, SLACK_TOKEN, etc. Real env vars still win — this
+// only fills in entries that aren't already set.
+loadEnvFile();
 
 const pkg = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "package.json"), "utf8")) as {
 	version: string;

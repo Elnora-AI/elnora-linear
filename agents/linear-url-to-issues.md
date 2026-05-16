@@ -39,6 +39,7 @@ elnora-linear issues create "Title" --team "Team" --description "md" \
   [--project "P"] [--labels "L1,L2"] [--priority 0-4] \
   [--assignee "name"|"me"|"none"] [--state "Todo"|"Backlog"] \
   [--skip-label-check]                    # bypass team label-policy validation
+  [--skip-project-check]                  # bypass require-a-project rule (placeholder issues only)
 elnora-linear relations create ENG-NEW ENG-OLD --type related|blocks|duplicate|similar
 ```
 
@@ -54,7 +55,7 @@ Every issue MUST be created with the maximum metadata that can reasonably be inf
 
 For every create, you MUST attempt to set:
 
-1. **Project** — never leave null. Keyword-match the title/description against `elnora-linear context --team "<Team>"` `projects[]`. Pick the best fit. Only omit `--project` if you've confirmed nothing reasonably matches — and report that explicitly ("no matching project; left unassigned").
+1. **Project** — never leave null. Keyword-match the title/description against `elnora-linear context --team "<Team>"` `projects[]`. Pick the best fit. Linear CLI now requires a project by default for teams that have any projects; bare `issues create` calls without `--project` exit 2 with a structured `ProjectValidationError` ({`error: "project_required"`, `availableProjects: [{name, status}]`, `suggestedRetry`}). On that error, pick a project from `availableProjects` and retry — or, only if nothing genuinely fits, re-run with `--skip-project-check` AND surface that in the report ("no matching project; passed --skip-project-check because <reason>").
 2. **Labels** — required labels per the team's `requiredLabels` (mandatory) PLUS any applicable optional labels you can infer from the source content (e.g. `Severity: *` for bugs with clear severity, `Source: *` if origin is obvious). More signal beats less.
 3. **Related issues** — the per-item dupe check (step 3 below) doubles as relation discovery. Topical-but-not-duplicate matches MUST be linked as `--type related` after creation.
 4. **Sibling links** — if multiple new issues come from the same source URL, link them as `--type related` so the cluster is visible.
@@ -110,12 +111,12 @@ Decision tree on matches:
 2. Read `references/workspace-projects.md` if you need status/purpose to disambiguate.
 3. Only fall back to `elnora-linear context --team "<Team>"` if the references are stale or the project might be brand new.
 
-- **Project (mandatory)**: keyword-match the issue title/description per the precedence above. Pick the best fit. Only omit `--project` if NOTHING reasonably fits — and surface that in the report.
+- **Project (mandatory by default)**: keyword-match the issue title/description per the precedence above. Pick the best fit. The CLI now rejects creates without `--project` for teams that have projects available (`ProjectValidationError`, exit 2). If NOTHING fits, pass `--skip-project-check` AND document why in the report — never silently omit.
 - **Project↔team binding**: projects are team-scoped. If a project name truly spans teams, ASK which one.
 - **Required labels**: per-team policy is enforced server-side by the CLI. For exotic labels call `elnora-linear context --team "<Team>"` and use `labels.byPrefix`.
 - **Optional labels — infer when signal is clear**: from the source content, also set `Severity: *` for bugs, `Source: *` for known origins, etc. Don't force values that aren't supported by the content.
 
-If you skipped the cold-start `context` call (single-issue run), the structured error from `issues create` carries `availableForPrefix` for any failed validation — re-run the suggested command verbatim.
+If you skipped the cold-start `context` call (single-issue run), the structured error from `issues create` carries `availableForPrefix` (label policy) or `availableProjects` (project policy) for any failed validation — re-run the suggested command verbatim or pick a value from the list and retry.
 
 ### 5. Create
 
@@ -189,7 +190,7 @@ If multiple new issues all derive from the same article, optionally link sibling
 - [ ] Technical detail traceable to source
 - [ ] At least one testable acceptance criterion
 - [ ] Source URL preserved in description
-- [ ] **Project set** (or explicit "no project — nothing matched" surfaced)
+- [ ] **Project set** (or `--skip-project-check` passed with explicit "no project — nothing matched: <reason>" surfaced)
 - [ ] Required labels present + applicable optional labels inferred
 - [ ] Topical relations linked as `related`; sibling issues from same source linked
 

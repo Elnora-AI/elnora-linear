@@ -14,7 +14,7 @@ Three surfaces, one npm package:
 
 - **`elnora-linear` CLI** — complete coverage of the Linear GraphQL API. Scriptable, JSON-pipeable, with structured errors that AI agents can self-correct from.
 - **`linear-workspace` Claude Code plugin** — six slash commands, five specialized agents, and a router skill that picks the right one from intent. `/plugin install linear-workspace@elnora-linear`.
-- **`elnora-linear curator-run`** — config-driven automation that polls GitHub, Slack, MCP servers, and custom shell signals, asks an LLM what to do, auto-applies safe state changes (capped, debounced, audit-logged), and queues the rest for human review.
+- **`elnora-linear curator-run`** — config-driven automation that polls GitHub, Slack, and custom shell signals, asks an LLM what to do, auto-applies safe state changes (capped, debounced, audit-logged), and queues the rest for human review.
 
 Built end-to-end so AI coding agents can drive Linear with confidence: structured errors for self-correction, bounded mutations, soft-delete defaults, and a hard `--yes` gate on anything destructive.
 
@@ -80,7 +80,7 @@ A router skill (`linear-workspace`) dispatches to the right agent or command fro
 Polls configured signal sources, builds an LLM snapshot of your open issues, and dispatches per tier:
 
 - **HIGH** — state change applied immediately with a rationale comment. Capped at 20 mutations/run. Re-apply on the same `{issue, from, to}` debounced 14 days.
-- **MEDIUM** — proposed action queued in `~/.config/elnora-linear/state/curator-state.json` for a human (or Slack bot) to confirm.
+- **MEDIUM** — proposed action queued in `~/.config/elnora-linear/state/curator-state.json` for a human to review. Outbound Slack confirmation (DM-back + threaded replies) is in the spec but not yet shipped; today you read the state file directly or via the `linear-state-curator` agent.
 - **LOW** — added to the run report. No side effects.
 
 Signal sources supported:
@@ -90,12 +90,35 @@ Signal sources supported:
 | `github_commits` | Commit messages over a lookback window |
 | `github_pr` | Open / closed / merged PR events |
 | `slack_messages` | Messages in watched channels, optionally pattern-matched |
-| `mcp_tool` | Any MCP server tool (Stripe, custom server, etc.) |
 | `external_command` | Arbitrary CLI command output (JSON or text) — **off unless `LINEAR_ALLOW_EXTERNAL_COMMAND=1`** |
+
+`mcp_tool` is reserved in the schema for a future release. Configuring one today raises a "not yet implemented" error at collect time.
 
 Every applied action is appended to `~/.config/elnora-linear/state/curator-report.jsonl`. Without `ANTHROPIC_API_KEY` (or with `--collect-only`), the curator runs in diagnostic mode and only reports collected signals.
 
 Recurring schedule: see [`docs/scheduling.md`](docs/scheduling.md) for launchd, systemd, and Task Scheduler templates.
+
+#### Slack setup (for the `slack_messages` signal)
+
+The curator reads channel history via Slack's `conversations.history` API. To wire it up:
+
+1. **Create a Slack app.** Go to [api.slack.com/apps](https://api.slack.com/apps) → **Create New App** → **From scratch**. Name it (e.g. `elnora-linear`) and pick your workspace.
+2. **Add bot token scopes.** Sidebar → **OAuth & Permissions** → **Bot Token Scopes** → add `channels:history` (public channels) and `groups:history` (private channels).
+3. **Install the app** to your workspace from the top of the same page and approve.
+4. **Copy the Bot User OAuth Token** (starts with `xoxb-`) and export it:
+   ```sh
+   export SLACK_TOKEN=xoxb-...
+   ```
+5. **Invite the bot to each channel** you want watched. In Slack, open the channel and run `/invite @your-app-name`. The bot only sees channels it's a member of.
+6. **Copy each channel's ID.** In Slack, click the channel name at the top → scroll to the bottom of the details panel → copy the ID (format `C0123ABCDEF`). Add them to `~/.config/elnora-linear/slack.json`:
+   ```json
+   {
+     "channels": [{ "id": "C0123ABCDEF", "name": "engineering" }],
+     "allowed_channels": ["C0123ABCDEF"]
+   }
+   ```
+
+Verify with `elnora-linear curator-run --collect-only` — collected Slack signals should appear in the output.
 
 ### Compliance templates
 [`templates/`](templates/) ships 23 Linear issue templates for SOC 2 / change management / RCA / vulnerability / access provisioning / vendor risk / AI capability workflows. `elnora-linear templates list` and `templates sync` push them to Linear.
@@ -144,8 +167,7 @@ Full details in [SAFETY.md](SAFETY.md).
 | **`ANTHROPIC_API_KEY`** | Required for the LLM dispatch step. Without it the curator runs in `--collect-only` diagnostic mode. |
 | **`gh` CLI**, authenticated | Required for the `github_pr` signal source |
 | **`git` + a local clone** | Required for the `github_commits` signal source; the repo entry in `repos.json` must include `local_path` |
-| **`SLACK_TOKEN`** | Required for the `slack_messages` signal source |
-| **An MCP server** | Required for any `mcp_tool` signal source you configure |
+| **`SLACK_TOKEN`** | Required for the `slack_messages` signal source (reading channel history). No outbound posting yet. |
 | **`LINEAR_ALLOW_EXTERNAL_COMMAND=1`** | Off by default. Set this to enable the `external_command` signal source. |
 
 **npm dependencies** (installed automatically)
@@ -197,6 +219,18 @@ Escape hatches for the auto-sync (any one disables it):
 - `ELNORA_LINEAR_SKIP_POSTINSTALL=1`
 - `CI=true` (auto-detected on most CI systems)
 - local (non-global) installs — only `npm install -g` triggers the sync
+
+**What the sync does and doesn't cover:**
+
+| File | Populated by | Why |
+|---|---|---|
+| `teams.json`, `projects.json`, `users.json`, `workflows.json` | auto-sync | Discoverable from the Linear API |
+| `label-policy.json` | you (ask your agent) | Which labels are *required* per team is a policy choice, not data |
+| `slack.json` | you (ask your agent) | Needs your channel IDs + outbound allowlist |
+| `repos.json` | you (ask your agent) | Needs the GitHub repos you want the curator to watch |
+| `signal-sources.json` | you (ask your agent) | Curator inputs — opt-in per source |
+
+The four manual files are only needed if you want the curator. To finish setup, just say to your agent: **"set up my curator config"** — it'll walk through each file using the populated examples in `references/*.example.json` as templates.
 
 ---
 
