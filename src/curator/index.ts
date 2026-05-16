@@ -1,5 +1,4 @@
 export {
-	DEBOUNCE_WINDOW_DAYS,
 	type DispatchOptions,
 	type DispatchResult,
 	dispatchActions,

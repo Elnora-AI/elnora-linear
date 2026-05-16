@@ -18,8 +18,9 @@ const ENDPOINT = "https://api.linear.app/graphql";
 const MAX_RETRY_AFTER_SECONDS = 60;
 
 function clampedRetryAfter(headerValue: string | null, fallbackSeconds = 60): number {
-	const parsed = headerValue ? Number.parseInt(headerValue, 10) : Number.NaN;
-	const seconds = Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackSeconds;
+	// Honor an explicit "0" (fast retry) but treat missing/garbage as fallback.
+	const parsed = headerValue !== null ? Number.parseInt(headerValue, 10) : Number.NaN;
+	const seconds = Number.isFinite(parsed) && parsed >= 0 ? parsed : fallbackSeconds;
 	return Math.min(seconds, MAX_RETRY_AFTER_SECONDS);
 }
 

@@ -9,9 +9,14 @@
 // issueIdentifier so the LLM sees each issue's evidence together.
 
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { BulkIssueNode } from "../lib/bulk-graphql.js";
 import type { Signal } from "../signals/types.js";
+
+// dist/curator/snapshot.js → package root is two up. Same for src/ during tests.
+const HERE = dirname(fileURLToPath(import.meta.url));
+const BUNDLED_TIERING_RULES_PATH = resolve(HERE, "..", "..", "references", "curator-tiering-rules.md");
 
 export interface PendingQuestion {
 	issue_id: string;
@@ -32,6 +37,8 @@ function loadTieringRules(opts: SnapshotInput): string {
 	const candidates: string[] = [];
 	if (opts.tieringRulesPath) candidates.push(opts.tieringRulesPath);
 	if (opts.referencesDir) candidates.push(join(opts.referencesDir, "curator-tiering-rules.md"));
+	// Final fallback: the copy bundled in the installed npm package.
+	candidates.push(BUNDLED_TIERING_RULES_PATH);
 	for (const path of candidates) {
 		try {
 			if (existsSync(path)) return readFileSync(path, "utf-8").trim();

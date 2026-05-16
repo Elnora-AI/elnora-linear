@@ -239,9 +239,7 @@ async function syncProjects(client: LinearClient, dir: string): Promise<SyncRepo
 async function syncUsers(client: LinearClient, dir: string): Promise<SyncReport> {
 	const firstPage = await client.users({ first: 250 });
 	const userNodes = await drainConnection(firstPage);
-	const users = userNodes.map((u) =>
-		mapUser({ id: u.id, name: u.name, email: u.email, displayName: u.displayName }),
-	);
+	const users = userNodes.map((u) => mapUser({ id: u.id, name: u.name, email: u.email, displayName: u.displayName }));
 	const path = writeReferenceJson(dir, "users", { users });
 	return { target: "users", written: users.length, path };
 }
