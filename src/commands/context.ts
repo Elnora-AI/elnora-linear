@@ -10,7 +10,13 @@
 import type { Command } from "commander";
 import { getClient } from "../client/index.js";
 import { handleAsyncCommand, outputSuccess } from "../output/index.js";
-import { getTeamLabelPolicy, groupLabelsByPrefix, recommendedStateForStatus, resolveTeam } from "../utils/index.js";
+import {
+	getTeamLabelPolicy,
+	groupLabelsByPrefix,
+	recommendedStateForStatus,
+	resolveTeam,
+	teamRequiresProject,
+} from "../utils/index.js";
 
 export function setupContextCommand(program: Command): void {
 	program
@@ -97,7 +103,7 @@ export function setupContextCommand(program: Command): void {
 					labels: { byPrefix: labelsByPrefix, all: dedupedLabels },
 					requiredLabels: policy?.required ?? [],
 					allowedLabelPrefixes: allowedPrefixes,
-					requiresProject: policy?.requiresProject ?? false,
+					requiresProject: teamRequiresProject(team.key),
 					templates,
 				};
 

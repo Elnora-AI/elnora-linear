@@ -16,6 +16,7 @@ import {
 	requireNonEmptyUpdate,
 	requireYes,
 	resolveTeam,
+	teamRequiresProject,
 } from "../utils/index.js";
 
 type TeamCreateInput = Parameters<LinearClient["createTeam"]>[0];
@@ -71,7 +72,7 @@ export function setupTeamsCommand(program: Command): void {
 					validStates,
 					requiredLabels,
 					allowedLabelPrefixes: allowedPrefixes,
-					requiresProject: labelPolicy?.requiresProject ?? false,
+					requiresProject: teamRequiresProject(full.key),
 				});
 			}),
 		);
