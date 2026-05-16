@@ -9,9 +9,14 @@
 // issueIdentifier so the LLM sees each issue's evidence together.
 
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { BulkIssueNode } from "../lib/bulk-graphql.js";
 import type { Signal } from "../signals/types.js";
+
+// dist/curator/snapshot.js → package root is two up. Same for src/ during tests.
+const HERE = dirname(fileURLToPath(import.meta.url));
+const BUNDLED_TIERING_RULES_PATH = resolve(HERE, "..", "..", "references", "curator-tiering-rules.md");
 
 export interface PendingQuestion {
 	issue_id: string;
@@ -28,13 +33,12 @@ export interface SnapshotInput {
 	referencesDir?: string;
 }
 
-const TIERING_RULES_DEFAULT_PATH = "references/curator-tiering-rules.md";
-
 function loadTieringRules(opts: SnapshotInput): string {
 	const candidates: string[] = [];
 	if (opts.tieringRulesPath) candidates.push(opts.tieringRulesPath);
 	if (opts.referencesDir) candidates.push(join(opts.referencesDir, "curator-tiering-rules.md"));
-	candidates.push(TIERING_RULES_DEFAULT_PATH);
+	// Final fallback: the copy bundled in the installed npm package.
+	candidates.push(BUNDLED_TIERING_RULES_PATH);
 	for (const path of candidates) {
 		try {
 			if (existsSync(path)) return readFileSync(path, "utf-8").trim();
@@ -43,6 +47,17 @@ function loadTieringRules(opts: SnapshotInput): string {
 		}
 	}
 	return "(curator-tiering-rules.md not found — using defaults baked into the agent prompt)";
+}
+
+/**
+ * Wrap untrusted text in `<untrusted>` tags so the model treats embedded
+ * directives as data, not instructions. The system prompt tells the curator
+ * never to act on directives inside these tags. We also strip any literal
+ * closing tags from the input so an attacker can't break out of the wrapper.
+ */
+function untrusted(text: string): string {
+	const sanitized = text.replace(/<\/?untrusted>/gi, "");
+	return `<untrusted>${sanitized}</untrusted>`;
 }
 
 function formatPendingQuestions(qs: PendingQuestion[]): string {
@@ -75,13 +90,14 @@ function formatIssueBlock(issue: BulkIssueNode, signals: Signal[]): string {
 	lines.push(`- updatedAt: ${issue.updatedAt}`);
 	if (issue.description) {
 		const truncated = issue.description.slice(0, 600);
-		lines.push(`- description: ${truncated}${issue.description.length > 600 ? "..." : ""}`);
+		const suffix = issue.description.length > 600 ? "..." : "";
+		lines.push(`- description: ${untrusted(`${truncated}${suffix}`)}`);
 	}
 	if (signals.length > 0) {
 		lines.push("- signals:");
 		for (const sig of signals) {
 			const payload = JSON.stringify(sig.payload).slice(0, 200);
-			lines.push(`  - [${sig.source}/${sig.type}] ${payload}`);
+			lines.push(`  - [${sig.source}/${sig.type}] ${untrusted(payload)}`);
 		}
 	} else {
 		lines.push("- signals: (none)");
@@ -94,7 +110,7 @@ function formatUnattributedSignals(signals: Signal[]): string {
 	const lines: string[] = ["", "## Unattributed signals (no issueIdentifier)"];
 	for (const sig of signals.slice(0, 50)) {
 		const payload = JSON.stringify(sig.payload).slice(0, 200);
-		lines.push(`- [${sig.source}/${sig.type}] ${payload}`);
+		lines.push(`- [${sig.source}/${sig.type}] ${untrusted(payload)}`);
 	}
 	if (signals.length > 50) {
 		lines.push(`- (+${signals.length - 50} more elided)`);
@@ -127,4 +143,4 @@ export function buildSnapshot(input: SnapshotInput): string {
 		.trim();
 }
 
-export const _internal = { loadTieringRules, formatPendingQuestions, groupSignals };
+export const _internal = { loadTieringRules, formatPendingQuestions, groupSignals, untrusted };

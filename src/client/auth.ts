@@ -26,7 +26,10 @@ const DEFAULT_ENV_FILE = join(homedir(), ".config", "elnora-linear", ".env");
 function validateKey(key: string): string {
 	const trimmed = key.trim().replace(/^["']|["']$/g, "");
 	if (!trimmed.startsWith(KEY_PREFIX)) {
-		throw new AuthError(`Linear API key must start with "${KEY_PREFIX}". Got: ${trimmed.slice(0, 12)}…`);
+		// Don't echo any prefix of the value — if it doesn't start with
+		// "lin_api_" we have no guarantee it isn't a different secret that the
+		// user pasted by mistake. Use a fixed sentinel instead.
+		throw new AuthError(`Linear API key must start with "${KEY_PREFIX}". Got: <redacted ${trimmed.length}-char value>`);
 	}
 	return trimmed;
 }

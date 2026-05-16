@@ -28,9 +28,21 @@ export const IMPLEMENTED_SIGNAL_SOURCE_TYPES = [
 
 const DECLARED_BUT_NOT_IMPLEMENTED: ReadonlySet<string> = new Set(["mcp_tool"]);
 
+export const EXTERNAL_COMMAND_ENV_FLAG = "LINEAR_ALLOW_EXTERNAL_COMMAND";
+
+function externalCommandAllowed(): boolean {
+	const v = process.env[EXTERNAL_COMMAND_ENV_FLAG];
+	return v === "1" || v === "true";
+}
+
 export function buildSignalSource(config: ConfigSignalSource, linearConfig: LinearConfig): SignalSourceImpl {
 	switch (config.type) {
 		case "external_command":
+			if (!externalCommandAllowed()) {
+				throw new Error(
+					`Signal source "${config.name}" is type "external_command" which executes arbitrary commands from references/signal-sources.json. Refusing to load: set ${EXTERNAL_COMMAND_ENV_FLAG}=1 to opt in. See SAFETY.md for details.`,
+				);
+			}
 			return new ExternalCommandSource(config as ExternalCommandConfig);
 		case "github_commits":
 			return new GithubCommitsSource(config as GithubCommitsConfig, linearConfig);

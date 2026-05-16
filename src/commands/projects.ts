@@ -302,12 +302,15 @@ async function resolveProjectLabelId(client: LinearClient, nameOrId: string): Pr
 	if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(nameOrId)) {
 		return nameOrId;
 	}
-	const result = await client.projectLabels({ first: 250 });
-	const match = result.nodes.find((l) => l.name.toLowerCase() === nameOrId.toLowerCase());
-	if (!match) {
-		throw new CliError(`Project label not found: ${nameOrId}`, {
-			suggestion: "Run `elnora-linear project-labels list` to see available labels.",
-		});
+	const lower = nameOrId.toLowerCase();
+	let cursor = await client.projectLabels({ first: 250 });
+	while (true) {
+		const match = cursor.nodes.find((l) => l.name.toLowerCase() === lower);
+		if (match) return match.id;
+		if (!cursor.pageInfo.hasNextPage) break;
+		cursor = await cursor.fetchNext();
 	}
-	return match.id;
+	throw new CliError(`Project label not found: ${nameOrId}`, {
+		suggestion: "Run `elnora-linear project-labels list` to see available labels.",
+	});
 }

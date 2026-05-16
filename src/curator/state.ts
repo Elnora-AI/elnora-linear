@@ -9,6 +9,7 @@
 // curator run doesn't trample a first one mid-write.
 
 import {
+	appendFileSync,
 	closeSync,
 	existsSync,
 	mkdirSync,
@@ -98,19 +99,34 @@ export function loadState(opts: StateDirOptions = {}): CuratorState {
 	}
 }
 
+export class CuratorLockError extends Error {
+	constructor(path: string) {
+		super(
+			`Another curator run is writing state (${path} exists). If you're sure no other run is active, delete the lock file and retry.`,
+		);
+		this.name = "CuratorLockError";
+	}
+}
+
 export function saveState(state: CuratorState, opts: StateDirOptions = {}): void {
 	const dir = resolveStateDir(opts);
 	mkdirSync(dir, { recursive: true });
 	const path = statePath(opts);
 	const lockPath = `${path}.lock`;
 
-	// Best-effort single-writer guarantee. If a stale lock exists we replace it
-	// — the curator runs at most once at a time per cron/launchd schedule, so a
-	// surviving lock means the previous run crashed.
-	if (existsSync(lockPath)) {
-		process.stderr.write(`Warning: stale lock ${lockPath} found; overwriting.\n`);
+	// Exclusive single-writer guarantee. `wx` mode fails with EEXIST if the lock
+	// already exists, so concurrent curator runs (rare but possible if a cron
+	// fires while a prior run is still flushing state) bail with a clear error
+	// rather than racing each other into a corrupt write.
+	let fd: number;
+	try {
+		fd = openSync(lockPath, "wx");
+	} catch (err) {
+		if ((err as NodeJS.ErrnoException).code === "EEXIST") {
+			throw new CuratorLockError(lockPath);
+		}
+		throw err;
 	}
-	const fd = openSync(lockPath, "w");
 	try {
 		// Trim caps before serializing.
 		if (state.processed_thread_keys.length > PROCESSED_KEYS_CAP) {
@@ -125,14 +141,7 @@ export function saveState(state: CuratorState, opts: StateDirOptions = {}): void
 	} finally {
 		closeSync(fd);
 		try {
-			renameSync(lockPath, `${lockPath}.released`);
-		} catch {}
-		// Clean up the released marker (best effort).
-		try {
-			const releasedPath = `${lockPath}.released`;
-			if (existsSync(releasedPath)) {
-				unlinkSync(releasedPath);
-			}
+			unlinkSync(lockPath);
 		} catch {}
 	}
 }
@@ -142,18 +151,14 @@ export function appendReportLine(entry: Record<string, unknown>, opts: StateDirO
 	mkdirSync(dir, { recursive: true });
 	const path = reportPath(opts);
 	const line = `${JSON.stringify({ ...entry, _ts: new Date().toISOString() })}\n`;
-	const fd = openSync(path, "a");
-	try {
-		writeFileSync(fd, line, { encoding: "utf-8" });
-	} finally {
-		closeSync(fd);
-	}
+	appendFileSync(path, line, { encoding: "utf-8" });
 }
 
 /**
  * Debounce key for a proposed action: `${issue_id}:${stable-hash(action)}`.
- * Used to avoid re-asking the same question or re-applying the same change
- * within a configurable lookback window (default 14 days).
+ * Used to avoid re-asking the same question or re-applying the same change.
+ * Keys accumulate in `processed_thread_keys` and age out only by FIFO cap
+ * (PROCESSED_KEYS_CAP entries); there's no per-key TTL today.
  */
 export function debounceKey(issueId: string, action: Record<string, unknown>): string {
 	return `${issueId}:${JSON.stringify(action)}`;

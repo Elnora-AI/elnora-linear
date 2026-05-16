@@ -7,17 +7,24 @@ import { type CuratorReport, formatCuratorReport, runCurator } from "../../src/c
 
 let tmp: string;
 let originalEnv: string | undefined;
+let originalExternalFlag: string | undefined;
 
 beforeEach(() => {
 	tmp = mkdtempSync(join(tmpdir(), "elnora-linear-curator-"));
 	originalEnv = process.env.LINEAR_REFERENCES_DIR;
 	delete process.env.LINEAR_REFERENCES_DIR;
+	originalExternalFlag = process.env.LINEAR_ALLOW_EXTERNAL_COMMAND;
+	// External-command sources are opt-in (see SAFETY.md); tests that build
+	// them must explicitly enable the flag.
+	process.env.LINEAR_ALLOW_EXTERNAL_COMMAND = "1";
 });
 
 afterEach(() => {
 	rmSync(tmp, { recursive: true, force: true });
 	if (originalEnv === undefined) delete process.env.LINEAR_REFERENCES_DIR;
 	else process.env.LINEAR_REFERENCES_DIR = originalEnv;
+	if (originalExternalFlag === undefined) delete process.env.LINEAR_ALLOW_EXTERNAL_COMMAND;
+	else process.env.LINEAR_ALLOW_EXTERNAL_COMMAND = originalExternalFlag;
 });
 
 function writeSignalSources(dir: string, sources: unknown[]): void {

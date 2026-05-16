@@ -14,7 +14,7 @@
 // What it does NOT do (yet — coming with the curator PR):
 //   - Interactive prompts for slack channels, repos, signal sources
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -169,7 +169,11 @@ export function mapWorkflowState(s: { name: string; type: string }): MappedWorkf
 
 function writeReferenceJson(dir: string, name: ReferenceName, body: object): string {
 	const path = join(dir, `${name}.json`);
-	writeFileSync(path, `${JSON.stringify(body, null, 2)}\n`);
+	const tmp = `${path}.tmp`;
+	// Atomic write: stage into a sibling, fsync-style rename. A crash mid-write
+	// leaves the prior file intact rather than corrupting the reference.
+	writeFileSync(tmp, `${JSON.stringify(body, null, 2)}\n`);
+	renameSync(tmp, path);
 	return path;
 }
 
@@ -183,19 +187,48 @@ function emitReport(report: SyncReport, mode: OutputMode): void {
 
 // ---------- live sync (network) ----------
 
+/**
+ * Drain a Linear SDK Connection (paged result) into a flat array. Uses the
+ * SDK's own `pageInfo.hasNextPage` + `fetchNext()` to follow cursors so we
+ * never silently truncate a workspace with more than `first` results.
+ */
+async function drainConnection<T>(initial: {
+	nodes: T[];
+	pageInfo: { hasNextPage: boolean };
+	fetchNext: () => Promise<{ nodes: T[]; pageInfo: { hasNextPage: boolean }; fetchNext: () => Promise<unknown> }>;
+}): Promise<T[]> {
+	const all: T[] = [...initial.nodes];
+	let cursor = initial as {
+		nodes: T[];
+		pageInfo: { hasNextPage: boolean };
+		fetchNext: () => Promise<unknown>;
+	};
+	while (cursor.pageInfo.hasNextPage) {
+		cursor = (await cursor.fetchNext()) as typeof cursor;
+		all.push(...cursor.nodes);
+	}
+	return all;
+}
+
+async function listAllTeams(client: LinearClient) {
+	const first = await client.teams({ first: 250 });
+	return drainConnection(first);
+}
+
 async function syncTeams(client: LinearClient, dir: string): Promise<SyncReport> {
-	const result = await client.teams({ first: 250 });
-	const teams = result.nodes.map((t) => mapTeam({ key: t.key, name: t.name, description: t.description }));
+	const teamNodes = await listAllTeams(client);
+	const teams = teamNodes.map((t) => mapTeam({ key: t.key, name: t.name, description: t.description }));
 	const path = writeReferenceJson(dir, "teams", { teams });
 	return { target: "teams", written: teams.length, path };
 }
 
 async function syncProjects(client: LinearClient, dir: string): Promise<SyncReport> {
-	const teamsResult = await client.teams({ first: 250 });
+	const teamNodes = await listAllTeams(client);
 	const projects: MappedProject[] = [];
-	for (const team of teamsResult.nodes) {
-		const result = await team.projects({ first: 100 });
-		for (const p of result.nodes) {
+	for (const team of teamNodes) {
+		const firstPage = await team.projects({ first: 100 });
+		const projectNodes = await drainConnection(firstPage);
+		for (const p of projectNodes) {
 			projects.push(mapProject({ name: p.name, description: p.description, state: p.state }, team.key));
 		}
 	}
@@ -204,21 +237,21 @@ async function syncProjects(client: LinearClient, dir: string): Promise<SyncRepo
 }
 
 async function syncUsers(client: LinearClient, dir: string): Promise<SyncReport> {
-	const result = await client.users({ first: 250 });
-	const users = result.nodes.map((u) =>
-		mapUser({ id: u.id, name: u.name, email: u.email, displayName: u.displayName }),
-	);
+	const firstPage = await client.users({ first: 250 });
+	const userNodes = await drainConnection(firstPage);
+	const users = userNodes.map((u) => mapUser({ id: u.id, name: u.name, email: u.email, displayName: u.displayName }));
 	const path = writeReferenceJson(dir, "users", { users });
 	return { target: "users", written: users.length, path };
 }
 
 async function syncWorkflows(client: LinearClient, dir: string): Promise<SyncReport> {
-	const teamsResult = await client.teams({ first: 250 });
+	const teamNodes = await listAllTeams(client);
 	const seen = new Set<string>();
 	const states: MappedWorkflowState[] = [];
-	for (const team of teamsResult.nodes) {
-		const result = await team.states({ first: 100 });
-		for (const s of result.nodes) {
+	for (const team of teamNodes) {
+		const firstPage = await team.states({ first: 100 });
+		const stateNodes = await drainConnection(firstPage);
+		for (const s of stateNodes) {
 			const mapped = mapWorkflowState({ name: s.name, type: s.type });
 			if (!mapped) continue;
 			const key = `${mapped.name}|${mapped.type}`;

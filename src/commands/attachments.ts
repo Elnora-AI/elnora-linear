@@ -136,6 +136,11 @@ export function setupAttachmentsCommand(program: Command): void {
 					});
 				}
 
+				const MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
+				if (fileContent.length > MAX_UPLOAD_SIZE) {
+					throw new CliError(`File too large (${fileContent.length} bytes, max ${MAX_UPLOAD_SIZE})`);
+				}
+
 				const uploadPayload = await client.fileUpload(opts.contentType, opts.filename, fileContent.length);
 				if (!uploadPayload.success) throw new CliError("Failed to get upload URL");
 				const uploadFile = uploadPayload.uploadFile;
@@ -157,16 +162,23 @@ export function setupAttachmentsCommand(program: Command): void {
 						headers[header.key] = header.value;
 					}
 				}
-				const MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
-				if (fileContent.length > MAX_UPLOAD_SIZE) {
-					throw new CliError(`File too large (${fileContent.length} bytes, max ${MAX_UPLOAD_SIZE})`);
-				}
 				const uploadBody = Uint8Array.from(fileContent);
-				const response = await fetch(uploadFile.uploadUrl, {
-					method: "PUT",
-					headers,
-					body: uploadBody,
-				});
+				// Bound the upload to UPLOAD_TIMEOUT_MS so a hung S3/GCS PUT can't
+				// stall the CLI indefinitely. 100MB max body / 5 min ≈ 280 KB/s,
+				// safely below the slowest plausible connection we'd want to wait on.
+				const UPLOAD_TIMEOUT_MS = 5 * 60 * 1000;
+				let response: Response;
+				try {
+					response = await fetch(uploadFile.uploadUrl, {
+						method: "PUT",
+						headers,
+						body: uploadBody,
+						signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
+					});
+				} catch (err) {
+					const msg = err instanceof Error ? err.message : String(err);
+					throw new CliError(`Upload failed: ${msg}`);
+				}
 				if (!response.ok) throw new CliError(`Upload failed: ${response.statusText}`);
 				const attachInput: AttachmentCreateInput = {
 					issueId: issue.id,
