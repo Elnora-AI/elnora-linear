@@ -1,0 +1,42 @@
+{
+	"$schema": "../schemas/signal-sources.json",
+	"_example": true,
+	"sources": [
+		{
+			"type": "github_commits",
+			"name": "tracked-repo-commits",
+			"enabled": true,
+			"repos": ["backend", "frontend"],
+			"lookback_days": 14
+		},
+		{
+			"type": "github_pr",
+			"name": "tracked-repo-prs",
+			"enabled": true,
+			"repos": ["backend", "frontend"]
+		},
+		{
+			"type": "slack_messages",
+			"name": "engineering-chatter",
+			"enabled": false,
+			"channels": ["C000000ENG"],
+			"match_patterns": ["closed", "merged", "deployed"]
+		},
+		{
+			"type": "external_command",
+			"name": "build-status",
+			"enabled": false,
+			"command": "ci-cli list-failing-builds --json",
+			"parse_as": "json",
+			"issue_match_field": "linear_issue_id"
+		},
+		{
+			"type": "mcp_tool",
+			"name": "stripe-payment-failures",
+			"enabled": false,
+			"server": "stripe-cli",
+			"tool": "list_failed_payments",
+			"args": { "lookback_hours": 24 }
+		}
+	]
+}

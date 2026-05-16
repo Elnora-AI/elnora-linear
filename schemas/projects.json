@@ -1,0 +1,47 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://github.com/Elnora-AI/elnora-linear/blob/main/schemas/projects.json",
+	"title": "Projects",
+	"description": "Linear projects across teams. Populated by `linear-sync projects` from the Linear API.",
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"$schema": { "type": "string" },
+		"_placeholder": { "type": "boolean", "const": true },
+		"_example": { "type": "boolean", "const": true },
+		"_populated_by": { "type": "string" },
+		"projects": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"name": { "type": "string", "minLength": 1 },
+					"team": {
+						"type": "string",
+						"description": "Team key (must exist in teams.json)"
+					},
+					"lead": {
+						"type": "string",
+						"description": "User key/handle of the project lead (resolves via users.json)"
+					},
+					"priority": {
+						"type": "string",
+						"enum": ["Urgent", "High", "Normal", "Low"]
+					},
+					"status": {
+						"type": "string",
+						"enum": ["Planned", "In Progress", "Backlog", "Completed", "Canceled"]
+					},
+					"description": { "type": "string" },
+					"sla": {
+						"type": "string",
+						"description": "Free-form SLA description, e.g. \"30 days\", \"same day\", \"RTO 2hrs\""
+					}
+				},
+				"required": ["name", "team"]
+			}
+		}
+	},
+	"required": ["projects"]
+}

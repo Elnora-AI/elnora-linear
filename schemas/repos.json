@@ -1,0 +1,41 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://github.com/Elnora-AI/elnora-linear/blob/main/schemas/repos.json",
+	"title": "Repos",
+	"description": "GitHub repositories the curator scans for signals (commits, PRs). Populated by `linear-sync repos`.",
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"$schema": { "type": "string" },
+		"_placeholder": { "type": "boolean", "const": true },
+		"_example": { "type": "boolean", "const": true },
+		"_populated_by": { "type": "string" },
+		"repos": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "Repository name (without org)"
+					},
+					"org": {
+						"type": "string",
+						"description": "GitHub org or user that owns the repo"
+					},
+					"local_path": {
+						"type": "string",
+						"description": "Optional local clone path for git-log scans; supports leading ~"
+					},
+					"default_branch": {
+						"type": "string",
+						"default": "main"
+					}
+				},
+				"required": ["name"]
+			}
+		}
+	},
+	"required": ["repos"]
+}

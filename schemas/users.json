@@ -1,0 +1,41 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://github.com/Elnora-AI/elnora-linear/blob/main/schemas/users.json",
+	"title": "Users",
+	"description": "Users referenced by name across the workspace. Populated by `linear-sync users` from the Linear API; optional Slack user IDs added via `linear-sync slack`.",
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"$schema": { "type": "string" },
+		"_placeholder": { "type": "boolean", "const": true },
+		"_example": { "type": "boolean", "const": true },
+		"_populated_by": { "type": "string" },
+		"users": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"key": {
+						"type": "string",
+						"pattern": "^[a-z][a-z0-9_-]*$",
+						"description": "Short handle used across other reference files (e.g. project lead, signal recipient)"
+					},
+					"name": { "type": "string", "minLength": 1 },
+					"email": { "type": "string", "format": "email" },
+					"linear_user_id": {
+						"type": "string",
+						"description": "Linear UUID, resolved via API"
+					},
+					"slack_user_id": {
+						"type": "string",
+						"pattern": "^U[A-Z0-9]+$",
+						"description": "Slack user ID for direct messages (optional; only set if curator messaging is enabled)"
+					}
+				},
+				"required": ["key", "name"]
+			}
+		}
+	},
+	"required": ["users"]
+}

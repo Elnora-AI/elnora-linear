@@ -13,6 +13,7 @@
     "commands/",
     "skills/",
     "templates/",
+    "schemas/",
     "references/*.placeholder.json",
     "references/*.example.json",
     "examples/",

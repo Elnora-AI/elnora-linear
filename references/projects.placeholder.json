@@ -1,0 +1,6 @@
+{
+	"$schema": "../schemas/projects.json",
+	"_placeholder": true,
+	"_populated_by": "linear-sync projects",
+	"projects": []
+}

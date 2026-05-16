@@ -1,0 +1,6 @@
+{
+	"$schema": "../schemas/repos.json",
+	"_placeholder": true,
+	"_populated_by": "linear-sync repos",
+	"repos": []
+}
