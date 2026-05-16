@@ -95,10 +95,12 @@ describe("loadConfig — populated user files", () => {
 			sources: [{ type: "github_pr", name: "test-prs", repos: ["test-repo"] }],
 		});
 		writePopulated("workflows", { states: [{ name: "Done", type: "completed" }], rules: [] });
+		writePopulated("label-policy", { policies: {} });
 		const cfg: LinearConfig = loadConfig({ referencesDir: tmp });
-		expect(Object.values(cfg.meta.sources)).toEqual(Array(7).fill("user-file"));
+		expect(Object.values(cfg.meta.sources)).toEqual(Array(8).fill("user-file"));
 		expect(cfg.repos.repos[0].name).toBe("test-repo");
 		expect(cfg.signalSources.sources[0].type).toBe("github_pr");
+		expect(cfg.labelPolicy.policies).toEqual({});
 	});
 });
 

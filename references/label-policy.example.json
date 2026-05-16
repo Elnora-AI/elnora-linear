@@ -1,0 +1,37 @@
+{
+	"$schema": "../schemas/label-policy.json",
+	"_example": true,
+	"policies": {
+		"ENG": {
+			"name": "Engineering",
+			"required": [
+				{
+					"prefixes": ["Type:"],
+					"min": 1,
+					"max": 1,
+					"description": "exactly one Type: label (feature | bug | improvement | research)"
+				},
+				{
+					"prefixes": ["Layer:"],
+					"min": 1,
+					"max": null,
+					"description": "one or more Layer: labels (frontend | backend | ops)"
+				}
+			],
+			"allowedPrefixes": ["Type:", "Layer:", "Flag:", "Template:"],
+			"requiresProject": true
+		},
+		"OPS": {
+			"name": "Operations",
+			"required": [
+				{
+					"prefixes": ["Type:", "Template:"],
+					"min": 1,
+					"description": "at least one Type: label OR a Template: label for compliance work"
+				}
+			],
+			"allowedPrefixes": ["Type:", "Template:", "Cadence:", "Flag:"],
+			"requiresProject": true
+		}
+	}
+}

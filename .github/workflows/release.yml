@@ -27,6 +27,9 @@ jobs:
           echo "Publishing version: $VERSION"
           npm version "$VERSION" --no-git-tag-version --allow-same-version
       - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
       - run: pnpm build
       - name: Publish to npm
         env:

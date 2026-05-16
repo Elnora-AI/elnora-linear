@@ -1,0 +1,6 @@
+{
+	"$schema": "../schemas/label-policy.json",
+	"_placeholder": true,
+	"_populated_by": "manual edit; populate per-team label policies as you formalise them",
+	"policies": {}
+}

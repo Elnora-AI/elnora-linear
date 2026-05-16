@@ -9,11 +9,36 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command, Option } from "commander";
+import { setupAgentActivitiesCommand } from "./commands/agent-activities.js";
+import { setupAgentSessionsCommand } from "./commands/agent-sessions.js";
+import { setupAttachmentsCommand } from "./commands/attachments.js";
+import { setupAuditCommand } from "./commands/audit.js";
 import { runBulk } from "./commands/bulk.js";
 import { runCleanup } from "./commands/cleanup.js";
+import { setupCommentsCommand } from "./commands/comments.js";
+import { setupCompletionCommand } from "./commands/completion.js";
+import { setupContextCommand } from "./commands/context.js";
 import { runCurator } from "./commands/curator.js";
+import { setupCustomerNeedsCommand } from "./commands/customer-needs.js";
+import { setupCustomersCommand } from "./commands/customers.js";
+import { setupCyclesCommand } from "./commands/cycles.js";
+import { setupDocumentsCommand } from "./commands/documents.js";
+import { setupFavoritesCommand } from "./commands/favorites.js";
+import { setupInitiativesCommand } from "./commands/initiatives.js";
+import { setupIssuesCommand } from "./commands/issues.js";
+import { setupLabelsCommand } from "./commands/labels.js";
+import { setupMilestonesCommand } from "./commands/milestones.js";
 import { runMyIssues } from "./commands/my-issues.js";
+import { setupNotificationsCommand } from "./commands/notifications.js";
+import { setupProjectLabelsCommand } from "./commands/project-labels.js";
+import { setupProjectRelationsCommand } from "./commands/project-relations.js";
+import { setupProjectsCommand } from "./commands/projects.js";
+import { setupQuotaCommand } from "./commands/quota.js";
+import { setupReactionsCommand } from "./commands/reactions.js";
+import { setupRelationsCommand } from "./commands/relations.js";
 import { runSearch } from "./commands/search.js";
+import { setupStatesCommand } from "./commands/states.js";
+import { setupStatusUpdatesCommand } from "./commands/status-updates.js";
 import {
 	AUTO_SYNC_TARGETS,
 	type AutoSyncTarget,
@@ -22,6 +47,11 @@ import {
 	runSyncTarget,
 	runSyncVerify,
 } from "./commands/sync.js";
+import { setupTeamsCommand } from "./commands/teams.js";
+import { setupTemplatesCommand } from "./commands/templates.js";
+import { setupUsersCommand } from "./commands/users.js";
+import { setupViewsCommand } from "./commands/views.js";
+import { setupWebhooksCommand } from "./commands/webhooks.js";
 
 const pkg = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "package.json"), "utf8")) as {
 	version: string;
@@ -148,13 +178,49 @@ sync
 
 program
 	.command("curator-run")
-	.description("Collect signals from configured signal sources and report. (Rule engine coming in a follow-up.)")
+	.description(
+		"Collect signals, build an LLM snapshot, dispatch HIGH/MEDIUM/LOW actions. Requires ANTHROPIC_API_KEY for the rule engine; --collect-only stays in diagnostic mode.",
+	)
 	.option("--source <name>", "Run only the named source (matches signal_sources[].name)")
 	.option("--references-dir <path>", "Override default references directory")
+	.option("--collect-only", "Stop after the signal-collection phase; skip the LLM and dispatcher")
+	.option("--dry-run", "Stage HIGH actions in the report but do NOT call the Linear API")
+	.option("--state-dir <path>", "Override the curator state directory (default ~/.config/elnora-linear/state/)")
 	.option("-o, --output <mode>", "Output mode: text or json", "text")
 	.action(async (opts) => {
 		await runCurator(opts);
 	});
+
+setupUsersCommand(program);
+setupStatesCommand(program);
+setupCyclesCommand(program);
+setupQuotaCommand(program);
+setupReactionsCommand(program);
+setupRelationsCommand(program);
+setupProjectRelationsCommand(program);
+setupFavoritesCommand(program);
+setupCommentsCommand(program);
+setupTeamsCommand(program);
+setupLabelsCommand(program);
+setupProjectLabelsCommand(program);
+setupProjectsCommand(program);
+setupMilestonesCommand(program);
+setupCustomersCommand(program);
+setupCustomerNeedsCommand(program);
+setupDocumentsCommand(program);
+setupNotificationsCommand(program);
+setupViewsCommand(program);
+setupInitiativesCommand(program);
+setupAgentSessionsCommand(program);
+setupAgentActivitiesCommand(program);
+setupAuditCommand(program);
+setupStatusUpdatesCommand(program);
+setupIssuesCommand(program);
+setupAttachmentsCommand(program);
+setupWebhooksCommand(program);
+setupContextCommand(program);
+setupTemplatesCommand(program);
+setupCompletionCommand(program);
 
 try {
 	await program.parseAsync(process.argv);

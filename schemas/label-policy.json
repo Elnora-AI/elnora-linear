@@ -1,0 +1,72 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://github.com/Elnora-AI/elnora-linear/blob/main/schemas/label-policy.json",
+	"title": "Label Policy",
+	"description": "Per-team required-label rules. Read by `issues create`, `issues update`, and `context` to surface required labels + enforce them at write time. Keyed by team key.",
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"$schema": { "type": "string" },
+		"_placeholder": { "type": "boolean", "const": true },
+		"_example": { "type": "boolean", "const": true },
+		"_populated_by": { "type": "string" },
+		"policies": {
+			"type": "object",
+			"description": "Map of team key → policy. Keys are uppercase Linear team keys (e.g. ENG).",
+			"patternProperties": {
+				"^[A-Z][A-Z0-9]*$": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["name", "required", "allowedPrefixes"],
+					"properties": {
+						"name": {
+							"type": "string",
+							"minLength": 1,
+							"description": "Human-readable team name (informational; the key is canonical)."
+						},
+						"required": {
+							"type": "array",
+							"description": "List of required label-prefix groups; each group must be satisfied for a write to succeed.",
+							"items": {
+								"type": "object",
+								"additionalProperties": false,
+								"required": ["prefixes", "min"],
+								"properties": {
+									"prefixes": {
+										"type": "array",
+										"items": { "type": "string", "minLength": 1 },
+										"description": "Any label whose name starts with one of these prefixes counts toward this group."
+									},
+									"min": {
+										"type": "integer",
+										"minimum": 0,
+										"description": "Minimum total label count across the listed prefixes."
+									},
+									"max": {
+										"type": ["integer", "null"],
+										"description": "Maximum total count, or null for no upper bound."
+									},
+									"description": {
+										"type": "string",
+										"description": "Human-readable hint surfaced in error responses."
+									}
+								}
+							}
+						},
+						"allowedPrefixes": {
+							"type": "array",
+							"items": { "type": "string" },
+							"description": "Master list of label prefixes valid for this team. Used for grouping in context responses."
+						},
+						"requiresProject": {
+							"type": "boolean",
+							"description": "If true, every new issue on this team must have a project set."
+						}
+					}
+				}
+			},
+			"additionalProperties": false
+		}
+	},
+	"required": ["policies"]
+}

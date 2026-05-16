@@ -29,6 +29,7 @@ import {
 	resolveReferencesDir,
 } from "../config/index.js";
 import type { OutputMode } from "../output/index.js";
+import { ValidationError } from "../utils/errors.js";
 
 export type AutoSyncTarget = "teams" | "projects" | "users" | "workflows";
 export const AUTO_SYNC_TARGETS: AutoSyncTarget[] = ["teams", "projects", "users", "workflows"];
@@ -292,12 +293,12 @@ export interface ImportReport {
 /** Pure: given parsed JSON, decide which reference targets to write. */
 export function planImport(parsed: unknown): ReferenceName[] {
 	if (typeof parsed !== "object" || parsed === null) {
-		throw new Error("Import file must be a JSON object.");
+		throw new ValidationError("Import file must be a JSON object.");
 	}
 	const obj = parsed as Record<string, unknown>;
 	const targets = REFERENCE_NAMES.filter((n) => n in obj);
 	if (targets.length === 0) {
-		throw new Error(
+		throw new ValidationError(
 			`Import file must be a bundle with top-level keys matching reference names: ${REFERENCE_NAMES.join(", ")}.`,
 		);
 	}
@@ -306,8 +307,20 @@ export function planImport(parsed: unknown): ReferenceName[] {
 
 export function runSyncImport(opts: SyncImportOptions): ImportReport {
 	const dir = resolveSyncWriteDir(opts.referencesDir);
-	const raw = readFileSync(opts.from, "utf8");
-	const parsed = JSON.parse(raw);
+	let raw: string;
+	try {
+		raw = readFileSync(opts.from, "utf8");
+	} catch (e: unknown) {
+		const msg = e instanceof Error ? e.message : String(e);
+		throw new ValidationError(`Cannot read import file ${opts.from}: ${msg}`);
+	}
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(raw);
+	} catch (e: unknown) {
+		const msg = e instanceof Error ? e.message : String(e);
+		throw new ValidationError(`Invalid JSON in ${opts.from}: ${msg}`);
+	}
 	const targets = planImport(parsed);
 
 	const written: ImportReport["written"] = [];
