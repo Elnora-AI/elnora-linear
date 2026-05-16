@@ -26,7 +26,7 @@ function writeSignalSources(dir: string, sources: unknown[]): void {
 
 describe("runCurator", () => {
 	it("reports 'no enabled sources' when references dir is empty (placeholder fallback)", async () => {
-		const report = await runCurator({ referencesDir: tmp, output: "json" });
+		const report = await runCurator({ referencesDir: tmp, output: "json", collectOnly: true });
 		expect(report.sources).toEqual([]);
 	});
 
@@ -34,7 +34,7 @@ describe("runCurator", () => {
 		writeSignalSources(tmp, [
 			{ type: "external_command", name: "off", enabled: false, command: "node -e console.log(JSON.stringify([]))" },
 		]);
-		const report = await runCurator({ referencesDir: tmp, output: "json" });
+		const report = await runCurator({ referencesDir: tmp, output: "json", collectOnly: true });
 		expect(report.sources).toEqual([]);
 	});
 
@@ -49,7 +49,7 @@ describe("runCurator", () => {
 				issue_match_field: "linear_id",
 			},
 		]);
-		const report = await runCurator({ referencesDir: tmp, output: "json" });
+		const report = await runCurator({ referencesDir: tmp, output: "json", collectOnly: true });
 		expect(report.sources).toHaveLength(1);
 		expect(report.sources[0].signalCount).toBe(2);
 		expect(report.sources[0].signals[0].issueIdentifier).toBe("X-1");
@@ -60,7 +60,7 @@ describe("runCurator", () => {
 			{ type: "external_command", name: "first", command: `node -e console.log(JSON.stringify([{x:1}]))` },
 			{ type: "external_command", name: "second", command: `node -e console.log(JSON.stringify([{x:2}]))` },
 		]);
-		const report = await runCurator({ referencesDir: tmp, output: "json", source: "second" });
+		const report = await runCurator({ referencesDir: tmp, output: "json", source: "second", collectOnly: true });
 		expect(report.sources).toHaveLength(1);
 		expect(report.sources[0].name).toBe("second");
 	});
@@ -74,7 +74,7 @@ describe("runCurator", () => {
 				command: `node -e console.log(JSON.stringify([{x:1}]))`,
 			},
 		]);
-		const report = await runCurator({ referencesDir: tmp, output: "json" });
+		const report = await runCurator({ referencesDir: tmp, output: "json", collectOnly: true });
 		expect(report.sources).toHaveLength(2);
 		const future = report.sources.find((s) => s.name === "future");
 		const works = report.sources.find((s) => s.name === "works");

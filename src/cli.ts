@@ -178,9 +178,14 @@ sync
 
 program
 	.command("curator-run")
-	.description("Collect signals from configured signal sources and report. (Rule engine coming in a follow-up.)")
+	.description(
+		"Collect signals, build an LLM snapshot, dispatch HIGH/MEDIUM/LOW actions. Requires ANTHROPIC_API_KEY for the rule engine; --collect-only stays in diagnostic mode.",
+	)
 	.option("--source <name>", "Run only the named source (matches signal_sources[].name)")
 	.option("--references-dir <path>", "Override default references directory")
+	.option("--collect-only", "Stop after the signal-collection phase; skip the LLM and dispatcher")
+	.option("--dry-run", "Stage HIGH actions in the report but do NOT call the Linear API")
+	.option("--state-dir <path>", "Override the curator state directory (default ~/.config/elnora-linear/state/)")
 	.option("-o, --output <mode>", "Output mode: text or json", "text")
 	.action(async (opts) => {
 		await runCurator(opts);
