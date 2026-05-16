@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/Elnora-AI/elnora-linear/compare/v1.0.0...v1.0.1) (2026-05-16)
+
+
+### Bug Fixes
+
+* pre-public audit cleanup — correctness, validation, hardening ([#19](https://github.com/Elnora-AI/elnora-linear/issues/19)) ([5592ba6](https://github.com/Elnora-AI/elnora-linear/commit/5592ba67133653d1fb8d16bf111849fa95e2599d))
+
 ## 1.0.0 (2026-05-16)
 
 
