@@ -22,7 +22,7 @@ This directory is **a template, not a running server**. The Linear plugin is a C
 
 ```bash
 # 1. Build the plugin CLI so the template can call it.
-cd /path/to/plugins/linear-workspace/cli && npm install && npm run build
+npm install -g @elnora-ai/linear
 
 # 2. Copy this template into your own project.
 cp -r templates/agent-server-template /path/to/your/agent-server
