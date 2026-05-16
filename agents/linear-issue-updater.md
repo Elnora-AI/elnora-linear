@@ -8,7 +8,7 @@ description: >
 
   <example>move ENG-101 to In Progress</example>
   <example>reassign ENG-405 to <name></example>
-  <example>add comment to SEC-50 about the fix</example>
+  <example>add comment to ENG-200 about the fix</example>
   <example>close ENG-300, it's done</example>
 color: yellow
 tools:
@@ -27,7 +27,7 @@ Apply a single change (or small batched set of changes) to one Linear issue. Con
 2. **Plan the change.** List exactly what will be changed in 1–2 lines. Examples:
    - "Move ENG-101 from `Todo` → `In Progress`"
    - "Reassign ENG-405 to <name>"
-   - "Add comment to SEC-50: <quote first 60 chars>…"
+   - "Add comment to ENG-200: <quote first 60 chars>…"
 3. **Confirm with the user** via `AskUserQuestion` if the change is destructive (state → Canceled, removing a label, etc.) or if you had to guess intent. Skip confirmation for clearly-stated edits.
 4. **Apply.** Use the appropriate `elnora-linear` invocation:
    - State changes → `elnora-linear bulk --query "<id>" --set-state "<new-state>" --yes`

@@ -53,15 +53,20 @@ export function buildBulkPlan(
 			currentState: issue.state,
 			changes: {},
 		};
+		let stateAlreadyMatches = false;
 		if (opts.setState) {
 			if (issue.state && issue.state.toLowerCase() === opts.setState.toLowerCase()) {
-				action.skipped = { reason: `already in state "${issue.state}"` };
+				stateAlreadyMatches = true;
 			} else {
 				action.changes.stateChange = { from: issue.state ?? "?", to: opts.setState };
 			}
 		}
 		if (opts.addComment) {
 			action.changes.commentAdded = opts.addComment;
+		}
+		// Only skip the action entirely if nothing is left to do.
+		if (Object.keys(action.changes).length === 0 && stateAlreadyMatches) {
+			action.skipped = { reason: `already in state "${issue.state}"` };
 		}
 		return action;
 	});
