@@ -2,7 +2,15 @@
 // The runtime loader validates parsed JSON against the schemas, so these
 // types describe the post-validation shape callers can rely on.
 
-export type ReferenceName = "teams" | "projects" | "users" | "slack" | "repos" | "signal-sources" | "workflows";
+export type ReferenceName =
+	| "teams"
+	| "projects"
+	| "users"
+	| "slack"
+	| "repos"
+	| "signal-sources"
+	| "workflows"
+	| "label-policy";
 
 export const REFERENCE_NAMES: ReferenceName[] = [
 	"teams",
@@ -12,6 +20,7 @@ export const REFERENCE_NAMES: ReferenceName[] = [
 	"repos",
 	"signal-sources",
 	"workflows",
+	"label-policy",
 ];
 
 interface MetaFlags {
@@ -173,6 +182,21 @@ export interface WorkflowsConfig extends MetaFlags {
 //   "missing"     — neither found (loader threw before returning)
 export type ReferenceSource = "user-file" | "placeholder" | "missing";
 
+// Label policy is loaded as the 8th reference; full type lives in
+// src/utils/label-policy.ts but we declare a shape-compatible interface here
+// to avoid a circular import.
+interface LabelPolicyConfigShape extends MetaFlags {
+	policies: Record<
+		string,
+		{
+			name: string;
+			required: { prefixes: string[]; min: number; max?: number | null; description?: string }[];
+			allowedPrefixes: string[];
+			requiresProject?: boolean;
+		}
+	>;
+}
+
 export interface LinearConfig {
 	teams: TeamsConfig;
 	projects: ProjectsConfig;
@@ -181,6 +205,7 @@ export interface LinearConfig {
 	repos: ReposConfig;
 	signalSources: SignalSourcesConfig;
 	workflows: WorkflowsConfig;
+	labelPolicy: LabelPolicyConfigShape;
 	meta: {
 		referencesDir: string;
 		bundledReferencesDir: string;

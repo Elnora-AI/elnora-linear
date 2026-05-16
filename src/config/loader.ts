@@ -40,6 +40,24 @@ import {
 	type WorkflowsConfig,
 } from "./types.js";
 
+// Shape-compatible with LabelPolicyConfig in src/utils/label-policy.ts.
+// Loader-side typing only — avoids importing the full util into config layer.
+interface LabelPolicyShape {
+	$schema?: string;
+	_placeholder?: boolean;
+	_example?: boolean;
+	_populated_by?: string;
+	policies: Record<
+		string,
+		{
+			name: string;
+			required: { prefixes: string[]; min: number; max?: number | null; description?: string }[];
+			allowedPrefixes: string[];
+			requiresProject?: boolean;
+		}
+	>;
+}
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 // In source: src/config/loader.ts → repo root is two up.
 // In dist:   dist/config/loader.js → package root is two up.
@@ -150,6 +168,7 @@ export function loadConfig(opts: LoadConfigOptions = {}): LinearConfig {
 	const repos = loadReference<ReposConfig>("repos", referencesDir, strict);
 	const signalSources = loadReference<SignalSourcesConfig>("signal-sources", referencesDir, strict);
 	const workflows = loadReference<WorkflowsConfig>("workflows", referencesDir, strict);
+	const labelPolicy = loadReference<LabelPolicyShape>("label-policy", referencesDir, strict);
 
 	return {
 		teams: teams.data,
@@ -159,6 +178,7 @@ export function loadConfig(opts: LoadConfigOptions = {}): LinearConfig {
 		repos: repos.data,
 		signalSources: signalSources.data,
 		workflows: workflows.data,
+		labelPolicy: labelPolicy.data,
 		meta: {
 			referencesDir,
 			bundledReferencesDir: BUNDLED_REFERENCES_DIR,
@@ -170,6 +190,7 @@ export function loadConfig(opts: LoadConfigOptions = {}): LinearConfig {
 				repos: repos.source,
 				"signal-sources": signalSources.source,
 				workflows: workflows.source,
+				"label-policy": labelPolicy.source,
 			},
 		},
 	};
