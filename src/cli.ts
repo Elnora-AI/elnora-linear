@@ -14,8 +14,12 @@ import { runCleanup } from "./commands/cleanup.js";
 import { setupCompletionCommand } from "./commands/completion.js";
 import { runCurator } from "./commands/curator.js";
 import { setupCyclesCommand } from "./commands/cycles.js";
+import { setupFavoritesCommand } from "./commands/favorites.js";
 import { runMyIssues } from "./commands/my-issues.js";
+import { setupProjectRelationsCommand } from "./commands/project-relations.js";
 import { setupQuotaCommand } from "./commands/quota.js";
+import { setupReactionsCommand } from "./commands/reactions.js";
+import { setupRelationsCommand } from "./commands/relations.js";
 import { runSearch } from "./commands/search.js";
 import { setupStatesCommand } from "./commands/states.js";
 import {
@@ -165,6 +169,10 @@ setupUsersCommand(program);
 setupStatesCommand(program);
 setupCyclesCommand(program);
 setupQuotaCommand(program);
+setupReactionsCommand(program);
+setupRelationsCommand(program);
+setupProjectRelationsCommand(program);
+setupFavoritesCommand(program);
 setupCompletionCommand(program);
 
 try {
