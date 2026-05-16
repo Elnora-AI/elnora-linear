@@ -1,32 +1,48 @@
 #!/usr/bin/env node
 // elnora-linear CLI entrypoint.
-// Real commands ship in subsequent commits. This skeleton handles --version and --help
-// so that CI's `node dist/cli.js --version|--help` smoke check passes on the empty repo.
+//
+// Commander-based subcommand dispatcher. Each subcommand is a thin wrapper
+// over a function in src/commands/*; the heavy lifting (auth, API calls,
+// formatting) happens there.
+
+import { Command } from "commander";
+import { runMyIssues } from "./commands/my-issues.js";
+import { runSearch } from "./commands/search.js";
 
 const VERSION = "0.0.0";
 
-const arg = process.argv[2];
+const program = new Command()
+	.name("elnora-linear")
+	.description("Linear workspace CLI for Claude Code — search, bulk edit, agents, config-driven curator.")
+	.version(VERSION, "-v, --version", "Print version")
+	.helpOption("-h, --help", "Show this help");
 
-if (arg === "--version" || arg === "-v") {
-	console.log(VERSION);
-	process.exit(0);
+program
+	.command("search")
+	.description("Search Linear issues")
+	.option("-q, --query <text>", "Search text (matches issue title + description)")
+	.option("-t, --team <key>", "Restrict to team key, e.g. ENG")
+	.option("-a, --assignee <name>", "Assignee name, email, or 'me'")
+	.option("-s, --state <name>", "Workflow state name, e.g. 'In Progress'")
+	.option("-l, --limit <n>", "Max results", (v) => Number.parseInt(v, 10), 25)
+	.option("-o, --output <mode>", "Output mode: text or json", "text")
+	.action(async (opts) => {
+		await runSearch(opts);
+	});
+
+program
+	.command("my-issues")
+	.description("List issues assigned to you")
+	.option("-l, --limit <n>", "Max results", (v) => Number.parseInt(v, 10), 25)
+	.option("-o, --output <mode>", "Output mode: text or json", "text")
+	.action(async (opts) => {
+		await runMyIssues(opts);
+	});
+
+try {
+	await program.parseAsync(process.argv);
+} catch (err) {
+	const message = err instanceof Error ? err.message : String(err);
+	process.stderr.write(`${message}\n`);
+	process.exit(1);
 }
-
-if (!arg || arg === "--help" || arg === "-h") {
-	process.stdout.write(
-		[
-			"elnora-linear — Linear workspace for Claude Code",
-			"",
-			"Usage:",
-			"  elnora-linear <command> [options]",
-			"",
-			"Commands are being added incrementally. See the repository for status.",
-			"",
-		].join("\n"),
-	);
-	process.exit(0);
-}
-
-console.error(`Unknown command: ${arg}`);
-console.error("Run `elnora-linear --help` for usage.");
-process.exit(1);
