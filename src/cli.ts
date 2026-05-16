@@ -9,19 +9,33 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command, Option } from "commander";
+import { setupAgentActivitiesCommand } from "./commands/agent-activities.js";
+import { setupAgentSessionsCommand } from "./commands/agent-sessions.js";
+import { setupAuditCommand } from "./commands/audit.js";
 import { runBulk } from "./commands/bulk.js";
 import { runCleanup } from "./commands/cleanup.js";
+import { setupCommentsCommand } from "./commands/comments.js";
 import { setupCompletionCommand } from "./commands/completion.js";
 import { runCurator } from "./commands/curator.js";
+import { setupCustomerNeedsCommand } from "./commands/customer-needs.js";
+import { setupCustomersCommand } from "./commands/customers.js";
 import { setupCyclesCommand } from "./commands/cycles.js";
+import { setupDocumentsCommand } from "./commands/documents.js";
 import { setupFavoritesCommand } from "./commands/favorites.js";
+import { setupInitiativesCommand } from "./commands/initiatives.js";
+import { setupLabelsCommand } from "./commands/labels.js";
+import { setupMilestonesCommand } from "./commands/milestones.js";
 import { runMyIssues } from "./commands/my-issues.js";
+import { setupNotificationsCommand } from "./commands/notifications.js";
+import { setupProjectLabelsCommand } from "./commands/project-labels.js";
 import { setupProjectRelationsCommand } from "./commands/project-relations.js";
+import { setupProjectsCommand } from "./commands/projects.js";
 import { setupQuotaCommand } from "./commands/quota.js";
 import { setupReactionsCommand } from "./commands/reactions.js";
 import { setupRelationsCommand } from "./commands/relations.js";
 import { runSearch } from "./commands/search.js";
 import { setupStatesCommand } from "./commands/states.js";
+import { setupStatusUpdatesCommand } from "./commands/status-updates.js";
 import {
 	AUTO_SYNC_TARGETS,
 	type AutoSyncTarget,
@@ -30,7 +44,9 @@ import {
 	runSyncTarget,
 	runSyncVerify,
 } from "./commands/sync.js";
+import { setupTeamsCommand } from "./commands/teams.js";
 import { setupUsersCommand } from "./commands/users.js";
+import { setupViewsCommand } from "./commands/views.js";
 
 const pkg = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "package.json"), "utf8")) as {
 	version: string;
@@ -173,6 +189,22 @@ setupReactionsCommand(program);
 setupRelationsCommand(program);
 setupProjectRelationsCommand(program);
 setupFavoritesCommand(program);
+setupCommentsCommand(program);
+setupTeamsCommand(program);
+setupLabelsCommand(program);
+setupProjectLabelsCommand(program);
+setupProjectsCommand(program);
+setupMilestonesCommand(program);
+setupCustomersCommand(program);
+setupCustomerNeedsCommand(program);
+setupDocumentsCommand(program);
+setupNotificationsCommand(program);
+setupViewsCommand(program);
+setupInitiativesCommand(program);
+setupAgentSessionsCommand(program);
+setupAgentActivitiesCommand(program);
+setupAuditCommand(program);
+setupStatusUpdatesCommand(program);
 setupCompletionCommand(program);
 
 try {
