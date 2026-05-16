@@ -10,6 +10,14 @@ import { runBulk } from "./commands/bulk.js";
 import { runCleanup } from "./commands/cleanup.js";
 import { runMyIssues } from "./commands/my-issues.js";
 import { runSearch } from "./commands/search.js";
+import {
+	AUTO_SYNC_TARGETS,
+	type AutoSyncTarget,
+	runSyncAll,
+	runSyncImport,
+	runSyncTarget,
+	runSyncVerify,
+} from "./commands/sync.js";
 
 const VERSION = "0.0.0";
 
@@ -76,6 +84,49 @@ program
 	.option("-o, --output <mode>", "Output mode: text or json", "text")
 	.action(async (opts) => {
 		await runCleanup(opts);
+	});
+
+const sync = program
+	.command("sync")
+	.description("Populate or refresh reference files. Run `elnora-linear sync --help` for subcommands.");
+
+sync
+	.command("all")
+	.description("Refresh every auto-discoverable target (teams, projects, users, workflows)")
+	.option("--references-dir <path>", "Override default references directory")
+	.option("-o, --output <mode>", "Output mode: text or json", "text")
+	.action(async (opts) => {
+		await runSyncAll(opts);
+	});
+
+for (const target of AUTO_SYNC_TARGETS) {
+	sync
+		.command(target)
+		.description(`Fetch ${target} from the Linear API and write references/${target}.json`)
+		.option("--references-dir <path>", "Override default references directory")
+		.option("-o, --output <mode>", "Output mode: text or json", "text")
+		.action(async (opts) => {
+			await runSyncTarget(target as AutoSyncTarget, opts);
+		});
+}
+
+sync
+	.command("verify")
+	.description("Validate every reference file against its schema; report which are user-populated vs placeholder.")
+	.option("--references-dir <path>", "Override default references directory")
+	.option("-o, --output <mode>", "Output mode: text or json", "text")
+	.action((opts) => {
+		runSyncVerify(opts);
+	});
+
+sync
+	.command("import")
+	.description("Import a JSON bundle (top-level keys = reference names) into individual reference files.")
+	.requiredOption("--from <path>", "Path to the bundle JSON file")
+	.option("--references-dir <path>", "Override default references directory")
+	.option("-o, --output <mode>", "Output mode: text or json", "text")
+	.action((opts) => {
+		runSyncImport(opts);
 	});
 
 try {
