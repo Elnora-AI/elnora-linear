@@ -110,3 +110,28 @@ export class LabelValidationError extends ValidationError {
 		this.name = "LabelValidationError";
 	}
 }
+
+/**
+ * Specialized validation error for project-policy violations on `issues create`.
+ * Fires when a team requires a project (default) and `--project` was not passed,
+ * provided the team has at least one project to choose from. Structured `data`
+ * lets the agent self-correct in one retry.
+ */
+export class ProjectValidationError extends ValidationError {
+	constructor(data: {
+		error: "project_required";
+		team: string;
+		teamKey: string;
+		availableProjects: { name: string; status: string | null }[];
+		suggestedRetry: string;
+	}) {
+		const message =
+			data.availableProjects.length === 1
+				? `Team "${data.team}" requires every issue to have a project. Available: "${data.availableProjects[0].name}".`
+				: `Team "${data.team}" requires every issue to have a project. ${data.availableProjects.length} projects available.`;
+		const suggestion =
+			"Pass --project <name> from availableProjects, or re-run the suggestedRetry command. To bypass (e.g. a placeholder issue), pass --skip-project-check.";
+		super(message, suggestion, { ...data });
+		this.name = "ProjectValidationError";
+	}
+}

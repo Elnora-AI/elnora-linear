@@ -63,6 +63,17 @@ export function getTeamLabelPolicy(teamKey: string, opts: LoadLabelPolicyOptions
 }
 
 /**
+ * Resolve whether a team requires every issue to have a project. Default is
+ * `true` — workspaces opt out per-team by setting `requiresProject: false` in
+ * `label-policy.json`. Unknown teams (no policy entry) also default to `true`.
+ * Callers must still allow the create when the team has zero projects.
+ */
+export function teamRequiresProject(teamKey: string, opts: LoadLabelPolicyOptions = {}): boolean {
+	const policy = getTeamLabelPolicy(teamKey, opts);
+	return policy?.requiresProject ?? true;
+}
+
+/**
  * Group labels by their first matching prefix. Labels not matching any known
  * prefix go to "_unprefixed". Order of knownPrefixes matters: the first match
  * wins, so put more specific prefixes earlier if any overlap.

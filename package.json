@@ -13,6 +13,7 @@
     "commands/",
     "skills/",
     "schemas/",
+    "scripts/postinstall.mjs",
     "references/*.md",
     "references/*.placeholder.json",
     "references/*.example.json",
@@ -36,7 +37,8 @@
     "lint": "biome check src/ __tests__/",
     "lint:fix": "biome check --write src/ __tests__/",
     "format": "biome format --write src/ __tests__/",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "postinstall": "node scripts/postinstall.mjs"
   },
   "keywords": [
     "linear",

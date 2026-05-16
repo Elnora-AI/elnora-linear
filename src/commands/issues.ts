@@ -31,6 +31,7 @@ import {
 	getTeamLabelPolicy,
 	LabelValidationError,
 	NotFoundError,
+	ProjectValidationError,
 	parseDate,
 	parseIssueIdentifier,
 	parseLimit,
@@ -43,6 +44,7 @@ import {
 	resolveState,
 	resolveTeam,
 	resolveUser,
+	teamRequiresProject,
 	ValidationError,
 	validateLabelsAgainstTeam,
 } from "../utils/index.js";
@@ -143,6 +145,42 @@ async function enforceTeamLabelPolicy(opts: {
 	});
 }
 
+async function enforceTeamProjectPolicy(opts: {
+	client: LinearClient;
+	teamKey: string;
+	teamId: string;
+	teamName: string;
+	projectPassed: boolean;
+	skip?: boolean;
+	retryCommand?: string;
+}): Promise<void> {
+	if (opts.skip || opts.projectPassed) return;
+	if (!teamRequiresProject(opts.teamKey)) return;
+
+	// Allow when the team has no projects to choose from. Otherwise surface the
+	// catalog so the agent can self-correct in one retry.
+	const conn = await opts.client.projects({
+		first: 100,
+		filter: { accessibleTeams: { id: { eq: opts.teamId } } },
+	});
+	if (conn.nodes.length === 0) return;
+
+	const availableProjects = await Promise.all(
+		conn.nodes.map(async (p) => {
+			const status = await p.status;
+			return { name: p.name, status: status?.name ?? null };
+		}),
+	);
+
+	throw new ProjectValidationError({
+		error: "project_required",
+		team: opts.teamName,
+		teamKey: opts.teamKey,
+		availableProjects,
+		suggestedRetry: opts.retryCommand ?? "",
+	});
+}
+
 export function setupIssuesCommand(program: Command): void {
 	const issues = program.command("issues").description("Manage Linear issues");
 
@@ -237,6 +275,10 @@ export function setupIssuesCommand(program: Command): void {
 		.option("--due-date <date>", "Due date (YYYY-MM-DD)")
 		.option("--parent <parent>", "Parent issue ID (e.g., ENG-123)")
 		.option("--skip-label-check", "Bypass team label-policy validation (use only when intentionally violating policy)")
+		.option(
+			"--skip-project-check",
+			"Bypass the require-a-project rule (use only for placeholder issues or workspaces that legitimately have unassigned issues)",
+		)
 		.action(
 			handleAsyncCommand(async (title: string, opts: Record<string, string>) => {
 				const client = await getClient();
@@ -251,6 +293,21 @@ export function setupIssuesCommand(program: Command): void {
 
 				const passedLabels = labelResults?.map((l) => l.name) ?? [];
 				const shellQuote = (s: string) => `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+				const baseRetry =
+					`elnora-linear issues create ${shellQuote(title)} --team ${shellQuote(teamResult.name)}` +
+					(opts.priority ? ` --priority ${opts.priority}` : "") +
+					(opts.assignee ? ` --assignee ${shellQuote(opts.assignee)}` : "");
+
+				await enforceTeamProjectPolicy({
+					client,
+					teamKey: teamResult.key,
+					teamId: teamResult.id,
+					teamName: teamResult.name,
+					projectPassed: Boolean(projectResult),
+					skip: Boolean(opts.skipProjectCheck),
+					retryCommand: `${baseRetry} --project "<pick one from availableProjects>"`,
+				});
+
 				await enforceTeamLabelPolicy({
 					client,
 					teamKey: teamResult.key,
@@ -259,11 +316,8 @@ export function setupIssuesCommand(program: Command): void {
 					finalLabelNames: passedLabels,
 					skip: Boolean(opts.skipLabelCheck),
 					retryCommand:
-						`elnora-linear issues create ${shellQuote(title)} --team ${shellQuote(teamResult.name)}` +
-						(opts.project ? ` --project ${shellQuote(opts.project)}` : "") +
-						' --labels "<add required labels per team policy>"' +
-						(opts.priority ? ` --priority ${opts.priority}` : "") +
-						(opts.assignee ? ` --assignee ${shellQuote(opts.assignee)}` : ""),
+						`${baseRetry}${opts.project ? ` --project ${shellQuote(opts.project)}` : ""}` +
+						' --labels "<add required labels per team policy>"',
 				});
 
 				const input: IssueCreateInput = { teamId: teamResult.id, title };

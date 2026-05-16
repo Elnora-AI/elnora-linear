@@ -8,6 +8,7 @@ import {
 	groupLabelsByPrefix,
 	loadLabelPolicies,
 	resetLabelPolicyCache,
+	teamRequiresProject,
 	validateLabelsAgainstTeam,
 } from "../../src/utils/index.js";
 
@@ -68,6 +69,47 @@ describe("loadLabelPolicies + getTeamLabelPolicy", () => {
 		expect(policy?.name).toBe("Engineering");
 		expect(policy?.requiresProject).toBe(true);
 		expect(policy?.required[0].prefixes).toEqual(["Type:"]);
+	});
+});
+
+describe("teamRequiresProject", () => {
+	it("defaults to true for unknown teams (no policy entry)", () => {
+		expect(teamRequiresProject("UNKNOWN", { referencesDir: tmp })).toBe(true);
+	});
+
+	it("defaults to true when a policy exists but omits requiresProject", () => {
+		writePolicies({
+			ENG: {
+				name: "Engineering",
+				required: [],
+				allowedPrefixes: [],
+			},
+		});
+		expect(teamRequiresProject("ENG", { referencesDir: tmp })).toBe(true);
+	});
+
+	it("honors an explicit requiresProject: false opt-out", () => {
+		writePolicies({
+			OPS: {
+				name: "Operations",
+				required: [],
+				allowedPrefixes: [],
+				requiresProject: false,
+			},
+		});
+		expect(teamRequiresProject("OPS", { referencesDir: tmp })).toBe(false);
+	});
+
+	it("honors an explicit requiresProject: true", () => {
+		writePolicies({
+			ENG: {
+				name: "Engineering",
+				required: [],
+				allowedPrefixes: [],
+				requiresProject: true,
+			},
+		});
+		expect(teamRequiresProject("ENG", { referencesDir: tmp })).toBe(true);
 	});
 });
 
