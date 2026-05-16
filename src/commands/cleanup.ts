@@ -52,9 +52,14 @@ export function buildCleanupPlan(
 		const proposed: CleanupActionPlan["proposed"] = {};
 		if (opts.action === "close") proposed.setStateType = "completed";
 		if (opts.action === "cancel") proposed.setStateType = "canceled";
-		if (opts.message) proposed.addComment = opts.message;
-		else if (opts.action === "comment") {
+		if (opts.message) {
+			proposed.addComment = opts.message;
+		} else if (opts.action === "comment") {
 			proposed.addComment = `This issue has been inactive for ${daysInactive} days. Closing or refreshing?`;
+		} else if (opts.action === "close") {
+			proposed.addComment = `Auto-closing — inactive for ${daysInactive} days.`;
+		} else if (opts.action === "cancel") {
+			proposed.addComment = `Auto-canceling — inactive for ${daysInactive} days.`;
 		}
 		return {
 			issueIdentifier: issue.identifier,

@@ -43,7 +43,7 @@ We follow a 90-day disclosure timeline. We ask that you:
 
 - The `elnora-linear` CLI and plugin code in this repository
 - Configuration handling (`references/*.json`, env var resolution, API-key storage)
-- Signal sources shipped in this repo (`github_commits`, `slack_messages`, `external_command`, `mcp_tool`)
+- Signal sources implemented in this repo (currently only `external_command`; the other source types in `schemas/signal-sources.json` are declared but not yet implemented)
 
 **Out of scope:**
 

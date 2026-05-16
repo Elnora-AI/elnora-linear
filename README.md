@@ -26,14 +26,14 @@ elnora-linear search "team:ENG state:in-progress"
 ## What's in the box
 
 - **Slash commands:** `/linear-search`, `/linear-my-issues`, `/linear-bulk`, `/linear-cleanup`, `/linear-sync`, `/linear-curator-run`
-- **Agents:** `linear-issue-creator`, `linear-issue-reviewer`, `linear-issue-updater`, `linear-url-to-issues`, `linear-state-curator`
+- **Agents:** `linear-issue-creator`, `linear-issue-reviewer`, `linear-issue-updater`, `linear-url-to-issues`
 - **Skill router:** `linear-workspace`
 - **CLI:** `elnora-linear` — every command above is scriptable
 - **Issue curator:** validates Linear issues against signals from your GitHub repos, Slack channels, MCP tools, or any shell command, and proposes state changes / nudges
 
 ## Configuration
 
-All user-specific data (team prefixes, channel IDs, repo allowlists, signal sources, custom workflows) lives in `references/*.json` files that the plugin populates on first run via `linear-sync`. The schema is documented in [docs/CONFIGURATION.md](docs/CONFIGURATION.md). Populated files live in your own private space (default `~/.config/elnora-linear/`) — they never enter this repo.
+All user-specific data (team prefixes, channel IDs, repo allowlists, signal sources, custom workflows) lives in `references/*.json` files that the plugin populates on first run via `linear-sync`. The JSON schemas live in [`schemas/`](schemas/). Populated files live in your own private space (default `~/.config/elnora-linear/`) — they never enter this repo.
 
 To re-fetch teams or projects after Linear changes:
 

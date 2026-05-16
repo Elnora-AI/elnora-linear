@@ -66,7 +66,7 @@
 							"required": ["command"],
 							"properties": {
 								"command": { "type": "string", "minLength": 1 },
-								"parse_as": { "type": "string", "enum": ["json", "lines", "regex"] },
+								"parse_as": { "type": "string", "enum": ["json", "lines"] },
 								"issue_match_field": { "type": "string" }
 							}
 						}

@@ -122,7 +122,7 @@ export interface LinearIssuesSource extends SignalSourceBase {
 export interface ExternalCommandSource extends SignalSourceBase {
 	type: "external_command";
 	command: string;
-	parse_as?: "json" | "lines" | "regex";
+	parse_as?: "json" | "lines";
 	issue_match_field?: string;
 }
 

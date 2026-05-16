@@ -5,6 +5,9 @@
 // over a function in src/commands/*; the heavy lifting (auth, API calls,
 // formatting) happens there.
 
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Command, Option } from "commander";
 import { runBulk } from "./commands/bulk.js";
 import { runCleanup } from "./commands/cleanup.js";
@@ -20,7 +23,20 @@ import {
 	runSyncVerify,
 } from "./commands/sync.js";
 
-const VERSION = "0.0.0";
+const pkg = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "package.json"), "utf8")) as {
+	version: string;
+};
+const VERSION = pkg.version;
+
+function positiveInt(name: string): (raw: string) => number {
+	return (raw: string) => {
+		const n = Number.parseInt(raw, 10);
+		if (!Number.isFinite(n) || n < 1) {
+			throw new Error(`${name} must be a positive integer (got "${raw}")`);
+		}
+		return n;
+	};
+}
 
 const program = new Command()
 	.name("elnora-linear")
@@ -35,7 +51,7 @@ program
 	.option("-t, --team <key>", "Restrict to team key, e.g. ENG")
 	.option("-a, --assignee <name>", "Assignee name, email, or 'me'")
 	.option("-s, --state <name>", "Workflow state name, e.g. 'In Progress'")
-	.option("-l, --limit <n>", "Max results", (v) => Number.parseInt(v, 10), 25)
+	.option("-l, --limit <n>", "Max results", positiveInt("--limit"), 25)
 	.option("-o, --output <mode>", "Output mode: text or json", "text")
 	.action(async (opts) => {
 		await runSearch(opts);
@@ -44,7 +60,7 @@ program
 program
 	.command("my-issues")
 	.description("List issues assigned to you")
-	.option("-l, --limit <n>", "Max results", (v) => Number.parseInt(v, 10), 25)
+	.option("-l, --limit <n>", "Max results", positiveInt("--limit"), 25)
 	.option("-o, --output <mode>", "Output mode: text or json", "text")
 	.action(async (opts) => {
 		await runMyIssues(opts);
@@ -59,7 +75,7 @@ program
 	.option("-s, --state <name>", "Filter: workflow state name")
 	.option("--set-state <name>", "Mutation: move matching issues to this state")
 	.option("--add-comment <text>", "Mutation: add this comment to each matching issue")
-	.option("-l, --limit <n>", "Max issues to touch", (v) => Number.parseInt(v, 10), 100)
+	.option("-l, --limit <n>", "Max issues to touch", positiveInt("--limit"), 100)
 	.option("-y, --yes", "Commit the mutations (default is dry-run)", false)
 	.option("-o, --output <mode>", "Output mode: text or json", "text")
 	.action(async (opts) => {
@@ -73,14 +89,14 @@ program
 	.option("-s, --states <names>", 'Filter: comma-separated state names (default "Todo,Backlog")', (v: string) =>
 		v.split(",").map((s) => s.trim()),
 	)
-	.option("--inactive-days <n>", "Issues with no activity for at least N days", (v) => Number.parseInt(v, 10), 30)
+	.option("--inactive-days <n>", "Issues with no activity for at least N days", positiveInt("--inactive-days"), 30)
 	.addOption(
 		new Option("--action <action>", "What to do with stale issues")
 			.choices(["close", "cancel", "comment"])
 			.default("comment"),
 	)
 	.option("--message <text>", "Comment text (overrides default cleanup message)")
-	.option("-l, --limit <n>", "Max issues to consider", (v) => Number.parseInt(v, 10), 100)
+	.option("-l, --limit <n>", "Max issues to consider", positiveInt("--limit"), 100)
 	.option("-y, --yes", "Commit the mutations (default is dry-run)", false)
 	.option("-o, --output <mode>", "Output mode: text or json", "text")
 	.action(async (opts) => {
