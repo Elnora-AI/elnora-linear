@@ -13,6 +13,9 @@ import { sleep } from "./sleep.js";
 
 const MAX_RETRIES = 3;
 const DEFAULT_RETRY_AFTER_MS = 60_000;
+// Cap so a hostile or buggy retry-after header can't stall the process for
+// hours. Linear's rate-limit windows reset in seconds-to-minutes.
+const MAX_RETRY_AFTER_MS = 60_000;
 
 function isRateLimitError(error: unknown): boolean {
 	if (!error || typeof error !== "object") return false;
@@ -42,7 +45,13 @@ function isRateLimitError(error: unknown): boolean {
  * default on every retry instead of honouring Linear's hint.
  */
 function parseRetryAfter(error: unknown): number {
-	if (!error || typeof error !== "object") return DEFAULT_RETRY_AFTER_MS;
+	const raw = readRetryAfterMs(error);
+	const ms = raw ?? DEFAULT_RETRY_AFTER_MS;
+	return Math.min(ms, MAX_RETRY_AFTER_MS);
+}
+
+function readRetryAfterMs(error: unknown): number | null {
+	if (!error || typeof error !== "object") return null;
 	const e = error as {
 		retryAfter?: number;
 		response?: { headers?: Headers | Record<string, string> };
@@ -53,17 +62,17 @@ function parseRetryAfter(error: unknown): number {
 	// Defensive fallback: also try to read the raw header in case a non-SDK
 	// caller wraps an error without the parsed retryAfter property.
 	const headers = e.response?.headers;
-	let raw: string | null | undefined;
+	let rawHeader: string | null | undefined;
 	if (headers && typeof (headers as Headers).get === "function") {
-		raw = (headers as Headers).get("retry-after");
+		rawHeader = (headers as Headers).get("retry-after");
 	} else if (headers && typeof headers === "object") {
-		raw = (headers as Record<string, string>)["retry-after"];
+		rawHeader = (headers as Record<string, string>)["retry-after"];
 	}
-	if (raw) {
-		const seconds = parseInt(raw, 10);
+	if (rawHeader) {
+		const seconds = parseInt(rawHeader, 10);
 		if (!Number.isNaN(seconds) && seconds > 0) return seconds * 1000;
 	}
-	return DEFAULT_RETRY_AFTER_MS;
+	return null;
 }
 
 /**
@@ -89,4 +98,4 @@ export async function withRateLimit<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 // Exported for testing
-export const _internal = { isRateLimitError, parseRetryAfter };
+export const _internal = { isRateLimitError, parseRetryAfter, MAX_RETRY_AFTER_MS };

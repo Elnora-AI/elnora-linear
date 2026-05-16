@@ -15,6 +15,7 @@ Gated commands:
 - `teams delete <name> --yes` — archives the entire team, all its issues, and all its projects
 - `issues delete <id> --permanent --yes`
 - `comments delete <id> --yes`
+- `documents delete <id> --yes`
 - `labels delete <id> --yes`
 - `attachments delete <id> --yes`
 - `milestones delete <id> --yes`
@@ -50,7 +51,16 @@ Required-label policies (e.g. each issue on a team must have a `Type:` and `Laye
 
 ## External-command signals
 
-`signal-sources.json` accepts entries of type `external_command` that run arbitrary shell commands and parse their output. These execute **with your user's privileges**. Only configure commands from sources you trust. The CLI does not sandbox them.
+`signal-sources.json` accepts entries of type `external_command` that run arbitrary commands (via `execFile`, not a shell) and parse their output. These execute **with your user's privileges**.
+
+Because anyone who can write to `references/signal-sources.json` — or anyone who can set `LINEAR_REFERENCES_DIR` to point at a directory they control — would get code execution on the next curator run, the source is **off by default**. To opt in, set `LINEAR_ALLOW_EXTERNAL_COMMAND=1`. Without the flag, the registry refuses to instantiate `external_command` sources and the curator surfaces a clear error.
+
+Only enable this when:
+
+- you control the contents of `references/signal-sources.json`, and
+- you understand that the curator runs commands listed there on every invocation.
+
+The CLI does not sandbox them.
 
 ## Publication safety
 

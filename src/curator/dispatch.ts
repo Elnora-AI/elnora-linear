@@ -10,12 +10,12 @@
 
 import type { LinearClient } from "@linear/sdk";
 import { resolveStateId } from "../lib/bulk-graphql.js";
+import { withRateLimit } from "../utils/rate-limit.js";
 import type { CuratorAction, CuratorHighAction, CuratorMediumAction } from "./llm.js";
 import { appendReportLine, type CuratorState, debounceKey } from "./state.js";
 
 export const MAX_MUTATIONS = 20;
 export const MAX_MEDIUM_QUEUED = 10;
-export const DEBOUNCE_WINDOW_DAYS = 14;
 
 export interface DispatchOptions {
 	dryRun?: boolean;
@@ -68,20 +68,20 @@ async function applyHighAction(
 		return { ok: false, error: `Cannot parse team prefix from issue_id ${action.issue_id}` };
 	}
 	const teamKey = match[1];
-	const stateId = await resolveStateId(teamKey, action.to_state);
+	const stateId = await withRateLimit(() => resolveStateId(teamKey, action.to_state));
 	if (!stateId) {
 		return { ok: false, error: `State "${action.to_state}" not found on team ${teamKey}` };
 	}
 	// Resolve the issue UUID via the public CLI's findIssueByIdentifier — but we
 	// only need the UUID for the SDK update call. Cheapest path: client.issue.
-	const issue = await client.issue(action.issue_id);
-	const update = await client.updateIssue(issue.id, { stateId });
+	const issue = await withRateLimit(() => client.issue(action.issue_id));
+	const update = await withRateLimit(() => client.updateIssue(issue.id, { stateId }));
 	if (!update.success) {
 		return { ok: false, error: "Linear API rejected the state update" };
 	}
 	// Comment with rationale.
 	const body = `${action.rationale}\n\n_Auto-applied by elnora-linear curator (rule ${action.rule})._`;
-	await client.createComment({ issueId: issue.id, body });
+	await withRateLimit(() => client.createComment({ issueId: issue.id, body }));
 	return { ok: true };
 }
 

@@ -59,6 +59,20 @@ describe("_internal helpers", () => {
 		expect(() => _internal.validateKey("bad_key")).toThrow(AuthError);
 	});
 
+	it("validateKey error never echoes the bad value", () => {
+		const secretLikeValue = "lin_api_THIS_IS_A_SECRET_TOKEN_DO_NOT_LEAK";
+		// Replace the prefix with something else so it fails validation, but keep
+		// the secret tail intact; the thrown message must not contain it.
+		const corrupted = `not_lin_${secretLikeValue.slice(8)}`;
+		try {
+			_internal.validateKey(corrupted);
+			throw new Error("validateKey should have thrown");
+		} catch (err) {
+			expect(err).toBeInstanceOf(AuthError);
+			expect((err as Error).message).not.toContain("THIS_IS_A_SECRET_TOKEN");
+		}
+	});
+
 	it("validateKey trims whitespace and quotes", () => {
 		expect(_internal.validateKey('  "lin_api_clean"  ')).toBe("lin_api_clean");
 	});

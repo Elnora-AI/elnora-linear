@@ -4,7 +4,7 @@ import type { LinearClient } from "@linear/sdk";
 import type { Command } from "commander";
 import { getClient } from "../client/index.js";
 import { handleAsyncCommand, outputSuccess } from "../output/index.js";
-import { CliError, parseLimit, requireNonEmptyUpdate, resolveProject } from "../utils/index.js";
+import { CliError, parseLimit, requireNonEmptyUpdate, requireYes, resolveProject } from "../utils/index.js";
 
 type DocumentCreateInput = Parameters<LinearClient["createDocument"]>[0];
 type DocumentUpdateInput = Parameters<LinearClient["updateDocument"]>[1];
@@ -100,9 +100,11 @@ export function setupDocumentsCommand(program: Command): void {
 
 	docs
 		.command("delete <id>")
-		.description("Delete a document (recoverable via restore)")
+		.description("Delete a document (recoverable via restore — requires --yes)")
+		.option("--yes", "Confirm deletion")
 		.action(
-			handleAsyncCommand(async (id: string) => {
+			handleAsyncCommand(async (id: string, opts: Record<string, string | boolean>) => {
+				requireYes(opts, `delete document ${id}`);
 				const client = await getClient();
 				const payload = await client.deleteDocument(id);
 				outputSuccess({ deleted: payload.success });

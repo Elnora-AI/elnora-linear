@@ -1,11 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { LinearConfig } from "../../src/config/types.js";
 import { ExternalCommandSource } from "../../src/signals/external-command.js";
 import { GithubCommitsSource } from "../../src/signals/github-commits.js";
 import { GithubPrSource } from "../../src/signals/github-pr.js";
 import { LinearIssuesSource } from "../../src/signals/linear-issues.js";
-import { buildSignalSource, IMPLEMENTED_SIGNAL_SOURCE_TYPES } from "../../src/signals/registry.js";
+import {
+	buildSignalSource,
+	EXTERNAL_COMMAND_ENV_FLAG,
+	IMPLEMENTED_SIGNAL_SOURCE_TYPES,
+} from "../../src/signals/registry.js";
 import { SlackMessagesSource } from "../../src/signals/slack-messages.js";
 
 const EMPTY_LINEAR_CONFIG: LinearConfig = {
@@ -34,7 +38,24 @@ const EMPTY_LINEAR_CONFIG: LinearConfig = {
 };
 
 describe("buildSignalSource", () => {
-	it("returns an ExternalCommandSource for external_command", () => {
+	let prevExternalFlag: string | undefined;
+	beforeEach(() => {
+		prevExternalFlag = process.env[EXTERNAL_COMMAND_ENV_FLAG];
+		delete process.env[EXTERNAL_COMMAND_ENV_FLAG];
+	});
+	afterEach(() => {
+		if (prevExternalFlag === undefined) delete process.env[EXTERNAL_COMMAND_ENV_FLAG];
+		else process.env[EXTERNAL_COMMAND_ENV_FLAG] = prevExternalFlag;
+	});
+
+	it("refuses to build external_command without the opt-in env flag", () => {
+		expect(() =>
+			buildSignalSource({ type: "external_command", name: "test", command: "echo hi" }, EMPTY_LINEAR_CONFIG),
+		).toThrow(new RegExp(EXTERNAL_COMMAND_ENV_FLAG));
+	});
+
+	it("returns an ExternalCommandSource for external_command when opted in", () => {
+		process.env[EXTERNAL_COMMAND_ENV_FLAG] = "1";
 		const source = buildSignalSource(
 			{ type: "external_command", name: "test", command: "echo hi" },
 			EMPTY_LINEAR_CONFIG,

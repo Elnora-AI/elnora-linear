@@ -12,6 +12,17 @@ import { sleep } from "../utils/sleep.js";
 
 const ENDPOINT = "https://api.linear.app/graphql";
 
+// Cap Retry-After honoring. A hostile or buggy header value of, say, 99999
+// would otherwise stall a curator run for ~27 hours. Linear's rate-limit
+// windows reset in seconds-to-minutes, so 60s is plenty.
+const MAX_RETRY_AFTER_SECONDS = 60;
+
+function clampedRetryAfter(headerValue: string | null, fallbackSeconds = 60): number {
+	const parsed = headerValue ? Number.parseInt(headerValue, 10) : Number.NaN;
+	const seconds = Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackSeconds;
+	return Math.min(seconds, MAX_RETRY_AFTER_SECONDS);
+}
+
 export interface RateLimitHeaders {
 	remaining?: number;
 	limit?: number;
@@ -95,7 +106,7 @@ export async function gqlRequest<T = unknown>(
 			if (attempt >= maxRetries) {
 				return { errors: [{ message: "Rate limited after max retries" }], rateLimit };
 			}
-			const retryAfter = +(res.headers.get("retry-after") ?? "60");
+			const retryAfter = clampedRetryAfter(res.headers.get("retry-after"));
 			process.stderr.write(`Linear 429: sleeping ${retryAfter}s (attempt ${attempt + 1}/${maxRetries})\n`);
 			await sleep(retryAfter * 1000);
 			attempt++;
@@ -114,7 +125,7 @@ export async function gqlRequest<T = unknown>(
 				if (attempt >= maxRetries) {
 					return { errors: [{ message: "Rate limited after max retries" }], rateLimit };
 				}
-				const retryAfter = +(res.headers.get("retry-after") ?? "60");
+				const retryAfter = clampedRetryAfter(res.headers.get("retry-after"));
 				process.stderr.write(`Linear RATELIMITED: sleeping ${retryAfter}s (attempt ${attempt + 1}/${maxRetries})\n`);
 				await sleep(retryAfter * 1000);
 				attempt++;
@@ -316,6 +327,23 @@ export interface MutationOp {
 	selection?: string;
 }
 
+/**
+ * Execute a list of mutations grouped into one GraphQL document per batch
+ * (default 10 ops per batch). Returns one result per input op, in order.
+ *
+ * **Not idempotent.** Linear's GraphQL API does not provide a server-side
+ * idempotency key, and we do not deduplicate ops on the client. If a batch is
+ * partially applied and the caller retries the same set, applied siblings will
+ * be re-applied (e.g. duplicate comments, no-op state changes that re-trigger
+ * webhooks). Callers running this from a retry loop must either:
+ *
+ * - filter ops by the result of the prior call (only retry `ok: false`), or
+ * - design ops so re-application is safe (idempotent updates like
+ *   `updateIssue({stateId: X})` are fine; `createComment` is not).
+ *
+ * The dispatcher in `src/curator/dispatch.ts` deliberately avoids calling this
+ * from a retry loop for this reason; bulk-edit callers should do the same.
+ */
 export async function batchMutations(
 	ops: MutationOp[],
 	opts: { batchSize?: number } = {},
@@ -438,4 +466,10 @@ export async function resolveStateId(teamKey: string, stateName: string): Promis
 	return match?.id ?? null;
 }
 
-export const _internal = { parseRateHeaders, isRateLimitedBody, bulkListFieldsFor };
+export const _internal = {
+	parseRateHeaders,
+	isRateLimitedBody,
+	bulkListFieldsFor,
+	clampedRetryAfter,
+	MAX_RETRY_AFTER_SECONDS,
+};

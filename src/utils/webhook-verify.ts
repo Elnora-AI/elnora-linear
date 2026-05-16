@@ -59,15 +59,16 @@ export interface VerifyOptions {
 export function verifyLinearWebhook(opts: VerifyOptions): boolean {
 	if (!opts.signature || !opts.secret) return false;
 
+	// `Buffer.from(value, "hex")` silently drops invalid characters and odd
+	// trailing nibbles. Reject anything that isn't a clean even-length hex
+	// string up front so a partially-garbled header can't slip past the
+	// length-vs-expected check below by accident.
+	if (!/^[0-9a-f]+$/i.test(opts.signature) || opts.signature.length % 2 !== 0) return false;
+
 	const body = typeof opts.rawBody === "string" ? Buffer.from(opts.rawBody, "utf-8") : opts.rawBody;
 	const expectedHex = createHmac("sha256", opts.secret).update(body).digest("hex");
 	const expected = Buffer.from(expectedHex, "hex");
-	let received: Buffer;
-	try {
-		received = Buffer.from(opts.signature, "hex");
-	} catch {
-		return false;
-	}
+	const received = Buffer.from(opts.signature, "hex");
 	if (received.length !== expected.length) return false;
 	if (!timingSafeEqual(received, expected)) return false;
 
