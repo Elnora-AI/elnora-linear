@@ -8,6 +8,7 @@
 import { Command, Option } from "commander";
 import { runBulk } from "./commands/bulk.js";
 import { runCleanup } from "./commands/cleanup.js";
+import { runCurator } from "./commands/curator.js";
 import { runMyIssues } from "./commands/my-issues.js";
 import { runSearch } from "./commands/search.js";
 import {
@@ -127,6 +128,16 @@ sync
 	.option("-o, --output <mode>", "Output mode: text or json", "text")
 	.action((opts) => {
 		runSyncImport(opts);
+	});
+
+program
+	.command("curator-run")
+	.description("Collect signals from configured signal sources and report. (Rule engine coming in a follow-up.)")
+	.option("--source <name>", "Run only the named source (matches signal_sources[].name)")
+	.option("--references-dir <path>", "Override default references directory")
+	.option("-o, --output <mode>", "Output mode: text or json", "text")
+	.action(async (opts) => {
+		await runCurator(opts);
 	});
 
 try {
