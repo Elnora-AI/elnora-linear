@@ -11,11 +11,13 @@ import { fileURLToPath } from "node:url";
 import { Command, Option } from "commander";
 import { setupAgentActivitiesCommand } from "./commands/agent-activities.js";
 import { setupAgentSessionsCommand } from "./commands/agent-sessions.js";
+import { setupAttachmentsCommand } from "./commands/attachments.js";
 import { setupAuditCommand } from "./commands/audit.js";
 import { runBulk } from "./commands/bulk.js";
 import { runCleanup } from "./commands/cleanup.js";
 import { setupCommentsCommand } from "./commands/comments.js";
 import { setupCompletionCommand } from "./commands/completion.js";
+import { setupContextCommand } from "./commands/context.js";
 import { runCurator } from "./commands/curator.js";
 import { setupCustomerNeedsCommand } from "./commands/customer-needs.js";
 import { setupCustomersCommand } from "./commands/customers.js";
@@ -23,6 +25,7 @@ import { setupCyclesCommand } from "./commands/cycles.js";
 import { setupDocumentsCommand } from "./commands/documents.js";
 import { setupFavoritesCommand } from "./commands/favorites.js";
 import { setupInitiativesCommand } from "./commands/initiatives.js";
+import { setupIssuesCommand } from "./commands/issues.js";
 import { setupLabelsCommand } from "./commands/labels.js";
 import { setupMilestonesCommand } from "./commands/milestones.js";
 import { runMyIssues } from "./commands/my-issues.js";
@@ -45,8 +48,10 @@ import {
 	runSyncVerify,
 } from "./commands/sync.js";
 import { setupTeamsCommand } from "./commands/teams.js";
+import { setupTemplatesCommand } from "./commands/templates.js";
 import { setupUsersCommand } from "./commands/users.js";
 import { setupViewsCommand } from "./commands/views.js";
+import { setupWebhooksCommand } from "./commands/webhooks.js";
 
 const pkg = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "package.json"), "utf8")) as {
 	version: string;
@@ -205,6 +210,11 @@ setupAgentSessionsCommand(program);
 setupAgentActivitiesCommand(program);
 setupAuditCommand(program);
 setupStatusUpdatesCommand(program);
+setupIssuesCommand(program);
+setupAttachmentsCommand(program);
+setupWebhooksCommand(program);
+setupContextCommand(program);
+setupTemplatesCommand(program);
 setupCompletionCommand(program);
 
 try {
