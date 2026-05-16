@@ -1,0 +1,33 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish-npm:
+    name: Publish to npm (OIDC)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+          cache: "pnpm"
+      - name: Sync version from release tag
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          VERSION="${REF_NAME#v}"
+          echo "Publishing version: $VERSION"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Publish to npm
+        run: npm publish --provenance --access public
