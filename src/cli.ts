@@ -11,9 +11,13 @@ import { fileURLToPath } from "node:url";
 import { Command, Option } from "commander";
 import { runBulk } from "./commands/bulk.js";
 import { runCleanup } from "./commands/cleanup.js";
+import { setupCompletionCommand } from "./commands/completion.js";
 import { runCurator } from "./commands/curator.js";
+import { setupCyclesCommand } from "./commands/cycles.js";
 import { runMyIssues } from "./commands/my-issues.js";
+import { setupQuotaCommand } from "./commands/quota.js";
 import { runSearch } from "./commands/search.js";
+import { setupStatesCommand } from "./commands/states.js";
 import {
 	AUTO_SYNC_TARGETS,
 	type AutoSyncTarget,
@@ -22,6 +26,7 @@ import {
 	runSyncTarget,
 	runSyncVerify,
 } from "./commands/sync.js";
+import { setupUsersCommand } from "./commands/users.js";
 
 const pkg = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "package.json"), "utf8")) as {
 	version: string;
@@ -155,6 +160,12 @@ program
 	.action(async (opts) => {
 		await runCurator(opts);
 	});
+
+setupUsersCommand(program);
+setupStatesCommand(program);
+setupCyclesCommand(program);
+setupQuotaCommand(program);
+setupCompletionCommand(program);
 
 try {
 	await program.parseAsync(process.argv);
