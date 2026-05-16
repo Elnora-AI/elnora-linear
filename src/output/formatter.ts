@@ -1,6 +1,15 @@
 // Output formatters for issue lists.
 // Text mode = aligned columns for humans. JSON mode = pretty-printed JSON for scripts / agents.
 
+/**
+ * Redact Linear API / OAuth / webhook secrets from a string. Defensive — used
+ * in error envelopes that may echo back fragments of request bodies or
+ * upstream HTTP responses.
+ */
+export function redactSecrets(text: string): string {
+	return text.replace(/lin_(api|oauth|wh)_[a-zA-Z0-9_-]+/g, "lin_$1_[REDACTED]");
+}
+
 export type OutputMode = "text" | "json";
 
 export interface FormattedIssue {
