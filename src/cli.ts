@@ -5,7 +5,9 @@
 // over a function in src/commands/*; the heavy lifting (auth, API calls,
 // formatting) happens there.
 
-import { Command } from "commander";
+import { Command, Option } from "commander";
+import { runBulk } from "./commands/bulk.js";
+import { runCleanup } from "./commands/cleanup.js";
 import { runMyIssues } from "./commands/my-issues.js";
 import { runSearch } from "./commands/search.js";
 
@@ -37,6 +39,43 @@ program
 	.option("-o, --output <mode>", "Output mode: text or json", "text")
 	.action(async (opts) => {
 		await runMyIssues(opts);
+	});
+
+program
+	.command("bulk")
+	.description("Apply the same change to many issues. Default is dry-run; pass --yes to commit.")
+	.option("-q, --query <text>", "Filter: search text")
+	.option("-t, --team <key>", "Filter: team key")
+	.option("-a, --assignee <name>", "Filter: assignee name, email, or 'me'")
+	.option("-s, --state <name>", "Filter: workflow state name")
+	.option("--set-state <name>", "Mutation: move matching issues to this state")
+	.option("--add-comment <text>", "Mutation: add this comment to each matching issue")
+	.option("-l, --limit <n>", "Max issues to touch", (v) => Number.parseInt(v, 10), 100)
+	.option("-y, --yes", "Commit the mutations (default is dry-run)", false)
+	.option("-o, --output <mode>", "Output mode: text or json", "text")
+	.action(async (opts) => {
+		await runBulk(opts);
+	});
+
+program
+	.command("cleanup")
+	.description("Find stale issues and act on them. Default is dry-run; pass --yes to commit.")
+	.option("-t, --team <key>", "Filter: team key")
+	.option("-s, --states <names>", 'Filter: comma-separated state names (default "Todo,Backlog")', (v: string) =>
+		v.split(",").map((s) => s.trim()),
+	)
+	.option("--inactive-days <n>", "Issues with no activity for at least N days", (v) => Number.parseInt(v, 10), 30)
+	.addOption(
+		new Option("--action <action>", "What to do with stale issues")
+			.choices(["close", "cancel", "comment"])
+			.default("comment"),
+	)
+	.option("--message <text>", "Comment text (overrides default cleanup message)")
+	.option("-l, --limit <n>", "Max issues to consider", (v) => Number.parseInt(v, 10), 100)
+	.option("-y, --yes", "Commit the mutations (default is dry-run)", false)
+	.option("-o, --output <mode>", "Output mode: text or json", "text")
+	.action(async (opts) => {
+		await runCleanup(opts);
 	});
 
 try {
