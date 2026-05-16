@@ -1,0 +1,69 @@
+{
+  "name": "@elnora-ai/linear",
+  "version": "0.0.0",
+  "description": "Linear workspace for Claude Code — search, bulk edit, agents, and a config-driven curator",
+  "type": "module",
+  "bin": {
+    "elnora-linear": "dist/cli.js"
+  },
+  "main": "dist/cli.js",
+  "files": [
+    "dist/",
+    "agents/",
+    "commands/",
+    "skills/",
+    "templates/",
+    "references/*.placeholder.json",
+    "references/*.example.json",
+    "examples/",
+    ".claude-plugin/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "biome check src/ __tests__/",
+    "lint:fix": "biome check --write src/ __tests__/",
+    "format": "biome format --write src/ __tests__/",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "linear",
+    "linear-app",
+    "claude-code",
+    "claude-code-plugin",
+    "issue-tracker",
+    "cli",
+    "agent",
+    "automation",
+    "elnora"
+  ],
+  "author": "Elnora AI <opensource@elnora.ai>",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Elnora-AI/elnora-linear"
+  },
+  "bugs": {
+    "url": "https://github.com/Elnora-AI/elnora-linear/issues"
+  },
+  "homepage": "https://github.com/Elnora-AI/elnora-linear",
+  "packageManager": "pnpm@10.33.0",
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.10",
+    "@types/node": "^25.5.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
+  }
+}
