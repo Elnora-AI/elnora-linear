@@ -372,8 +372,11 @@ entry:
 - `type: "github_commits"` and `type: "github_pr"` — enable IFF Step 4c
   populated repos.
 - `type: "slack_messages"` — enable IFF Step 4b populated Slack.
-- `type: "external_command"` and `type: "mcp_tool"` — leave disabled unless
-  the user volunteered a specific command or MCP tool. Do not invent these.
+- `type: "external_command"` — leave disabled unless the user volunteered a
+  specific command. Do not invent one.
+- `type: "mcp_tool"` — reserved in the schema for a future release. Do NOT
+  add an entry; configuring one raises a "not yet implemented" error at
+  collect time.
 
 After writing, run:
 

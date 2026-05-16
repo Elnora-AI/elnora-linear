@@ -4,6 +4,8 @@ Edit this file to tune the curator's behavior. Loaded at runtime by the curator 
 
 The curator scores every open issue (Todo / In Progress / Backlog) on the teams listed in `teams.json` against the rules below and picks the highest-confidence tier that fires.
 
+> **Implementation status (2026-05):** the HIGH tier (auto-apply) and LOW tier (report only) are fully wired. The MEDIUM tier currently stages questions in `~/.config/elnora-linear/state/curator-state.json` only — the Slack-posting and DM-back paths described below (top-level channel posts, threaded LLM-classified replies, label-allowlist DMs) are part of the design contract but **not yet shipped**. The orchestrator that posts to Slack, classifies replies, and applies the result is a follow-up release. Treat the Slack language as planned behavior; today, a human reads the state file (or the `linear-state-curator` agent does).
+
 ## HIGH — auto-apply state changes (cap: 20 per run)
 
 Any one of these fires the HIGH tier. The curator updates state via `elnora-linear issues update`, posts a rationale comment on the issue with cited signals, and lists the action in the daily summary.
