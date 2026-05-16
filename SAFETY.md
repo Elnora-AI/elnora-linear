@@ -55,12 +55,7 @@ Required-label policies (e.g. each issue on a team must have a `Type:` and `Laye
 
 Because anyone who can write to `references/signal-sources.json` — or anyone who can set `LINEAR_REFERENCES_DIR` to point at a directory they control — would get code execution on the next curator run, the source is **off by default**. To opt in, set `LINEAR_ALLOW_EXTERNAL_COMMAND=1`. Without the flag, the registry refuses to instantiate `external_command` sources and the curator surfaces a clear error.
 
-Only enable this when:
-
-- you control the contents of `references/signal-sources.json`, and
-- you understand that the curator runs commands listed there on every invocation.
-
-The CLI does not sandbox them.
+Only enable this when you control the contents of `references/signal-sources.json` and understand that the curator will run every command listed there on every invocation. The CLI does not sandbox them.
 
 ## Publication safety
 

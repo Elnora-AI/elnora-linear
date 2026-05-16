@@ -1,9 +1,11 @@
 // `slack_messages` signal source.
 //
 // Polls Slack `conversations.history` for the configured channel IDs and
-// filters messages by `match_patterns` (case-insensitive substring match
-// against `text`). Issue identifiers in matched messages are extracted via
-// the team-prefix regex derived from references/teams.json.
+// filters messages by `match_patterns` — each pattern is compiled to a
+// case-insensitive, word-boundary regex (so "prod" doesn't match "reproduce").
+// Regex metacharacters in the user-supplied pattern are escaped. Issue
+// identifiers in matched messages are extracted via the team-prefix regex
+// derived from references/teams.json.
 //
 // Auth: requires SLACK_TOKEN (Bot or User token) in the environment. Without
 // it the source emits one warning signal and returns.
@@ -45,6 +47,11 @@ export function setSlackFetchForTesting(impl: FetchLike | null): void {
 	fetchImpl = impl ?? fetch;
 }
 
+function toWordBoundaryRegex(pattern: string): RegExp {
+	const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	return new RegExp(`\\b${escaped}\\b`, "i");
+}
+
 export class SlackMessagesSource implements SignalSourceImpl {
 	readonly config: SlackMessagesConfig;
 	private readonly linearConfig: LinearConfig;
@@ -71,7 +78,11 @@ export class SlackMessagesSource implements SignalSourceImpl {
 
 		const teamKeys = this.linearConfig.teams.teams.map((t) => t.key);
 		const issueRegex = commitsInternal.buildTeamRegex(teamKeys);
-		const patterns = (this.config.match_patterns ?? []).map((p) => p.toLowerCase());
+		// Compile each match pattern as a case-insensitive, word-boundary regex
+		// so e.g. "prod" doesn't fire on "reproduce" or "qa" on "equal". Anything
+		// that doesn't compile (user-supplied regex metachars) is treated as a
+		// plain word and escaped.
+		const patterns = (this.config.match_patterns ?? []).map(toWordBoundaryRegex);
 
 		const lookback = (this.config.lookback_hours ?? DEFAULT_LOOKBACK_HOURS) * 3600;
 		const oldest = (ctx.now.getTime() / 1000 - lookback).toFixed(3);
@@ -125,8 +136,7 @@ export class SlackMessagesSource implements SignalSourceImpl {
 				if (!msg.text) continue;
 				if (msg.subtype === "bot_message" || msg.subtype === "channel_join") continue;
 
-				const lower = msg.text.toLowerCase();
-				if (patterns.length > 0 && !patterns.some((p) => lower.includes(p))) continue;
+				if (patterns.length > 0 && !patterns.some((re) => re.test(msg.text as string))) continue;
 
 				const ids = commitsInternal.extractIssueIds(msg.text, issueRegex);
 				const base = {
