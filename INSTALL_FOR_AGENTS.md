@@ -1,22 +1,27 @@
-# INSTALL_FOR_AGENTS.md — `linear-workspace` setup
+# INSTALL_FOR_AGENTS.md — `elnora-linear` setup
 
 > **Step 0 — Identity gate.** If you are NOT an autonomous coding agent (Claude
-> Code, Cursor, Windsurf, etc.), stop reading this file and open `README.md`
-> instead. This file walks an agent through a multi-step setup that includes
-> reading an API key from the user, writing config to `~/.config/elnora-linear/`,
-> and making live calls against the Linear GraphQL API. Humans should follow
-> the README's Quick Start.
+> Code, Codex CLI, Cursor, Aider, Continue, Amp, Jules, Roo, Windsurf, etc.),
+> stop reading this file and open `README.md` instead. This file walks an agent
+> through a multi-step setup that includes reading an API key from the user,
+> writing config to `~/.config/elnora-linear/`, and making live calls against
+> the Linear GraphQL API. Humans should follow the README's Quick Start.
 
-You are the agent handing off after the user installed the `linear-workspace`
-plugin (either `/plugin install linear-workspace@elnora-linear` or
-`npm install -g @elnora-ai/linear`). Your job is to verify the install, collect
-the user's Linear API key, populate workspace references, optionally configure
-the curator, run a smoke test, and hand them a working environment.
+You are the agent handing off after the user installed `elnora-linear`
+(`npm install -g @elnora-ai/linear`, optionally also the Claude Code plugin
+via `/plugin install linear-workspace@elnora-linear`). Your job is to verify
+the install, collect the user's Linear API key, populate workspace references,
+optionally configure the curator, run a smoke test, and hand them a working
+environment.
 
 Be transparent: announce each step before you run it, show the output, and
 explain what you found. The user may not know what a `references/` directory
 is or what the curator does — keep your language plain and ask one question at
 a time.
+
+**Universal:** every step here uses the `elnora-linear` CLI, which works
+identically under any agent harness. The only Claude-Code-specific note is
+the optional plugin check in Step 1.
 
 ## Step 1 — Verify the install
 
@@ -35,20 +40,25 @@ Gates:
   `cleanup`, `sync`, `curator-run`, …). If the binary runs but the command
   list is empty or truncated, the build is broken — surface it.
 
-If the user installed via Claude Code plugin, also confirm the plugin loaded:
+**Claude Code only — optional.** If the user also installed the
+`linear-workspace` plugin, confirm it loaded:
 
 ```sh
 ls .claude/plugins 2>/dev/null || ls ~/.claude/plugins 2>/dev/null
 ```
 
 You should see `linear-workspace` somewhere. If not, the `/plugin install`
-didn't complete — ask the user to rerun it.
+didn't complete — ask the user to rerun it. Skip this check entirely under
+Codex / Cursor / Aider / Continue / Amp / Jules / Roo — those harnesses use
+the CLI directly via [`AGENTS.md`](AGENTS.md), no plugin install required.
 
 ## Step 2 — Collect the Linear API key
 
-The CLI persists the key to `~/.config/elnora-linear/.env` at mode `0600` on
-first use. Don't try to write that file yourself — let the CLI handle it so
-permissions stay correct.
+The CLI reads the key from (in order): `LINEAR_API_KEY` env var, then
+`~/.config/elnora-linear/.env`, then an interactive prompt if stdin is a TTY.
+The interactive-prompt path is the only one that auto-persists — since you're
+about to set the env var yourself, you must also write the `.env` file so the
+key survives the next shell.
 
 Tell the user, verbatim:
 
@@ -57,43 +67,46 @@ Tell the user, verbatim:
 > it a name like "elnora-linear", copy the value, and paste it here. The key
 > starts with `lin_api_`.
 
-When the user pastes the key, set it as an environment variable for the
-verification call and let the next command persist it:
+When the user pastes the key, set it in the environment AND write it to the
+config file. Use a strict `umask` so the file is created at mode `0600`:
 
 ```sh
 export LINEAR_API_KEY="<paste>"
-elnora-linear teams list --limit 5
-```
-
-Gates:
-- Exit 0 and at least one team row in the output. That confirms the key is
-  valid and the API is reachable.
-- If you get `401 Unauthorized`, the key is wrong — ask the user to regenerate
-  it. Do NOT retry with a key you guessed or pieced together.
-- If you get `403 Forbidden` on a specific team, the key works but is scoped
-  to a subset of workspaces — note this and continue, but flag it in your
-  Step 6 summary so the user knows the curator can't see those teams.
-
-Then persist the key so future shells stay authenticated. The CLI reads
-`LINEAR_API_KEY` from `~/.config/elnora-linear/.env` automatically — write it
-once and `export` lines stop being necessary:
-
-```sh
 mkdir -p ~/.config/elnora-linear
 umask 077
 printf 'LINEAR_API_KEY=%s\n' "$LINEAR_API_KEY" > ~/.config/elnora-linear/.env
 chmod 600 ~/.config/elnora-linear/.env
 ```
 
-Gate: `stat -f '%Sp' ~/.config/elnora-linear/.env` (macOS) or
-`stat -c '%a' ~/.config/elnora-linear/.env` (Linux) must show `600` /
-`-rw-------`. If it's any wider, fix it with `chmod 600` before continuing —
-this file holds a workspace-scoped API key.
+Then verify the key works against the live API:
+
+```sh
+elnora-linear teams list --limit 5
+```
+
+Gates:
+- Exit 0 and at least one team row in the output. That confirms the key is
+  valid and the API is reachable.
+- `stat -f '%Sp' ~/.config/elnora-linear/.env` (macOS) or
+  `stat -c '%a' ~/.config/elnora-linear/.env` (Linux) must show `600` /
+  `-rw-------`. If it's any wider, fix it with `chmod 600` before continuing —
+  this file holds a workspace-scoped API key.
+- If you get `401 Unauthorized`, the key is wrong — ask the user to regenerate
+  it. Do NOT retry with a key you guessed or pieced together.
+- If you get `403 Forbidden` on a specific team, the key works but is scoped
+  to a subset of workspaces — note this and continue, but flag it in your
+  Step 6 summary so the user knows the curator can't see those teams.
 
 ## Step 3 — Sync workspace references
 
-Populate the four auto-discoverable reference files (teams, projects, users,
-workflows) in one batch:
+**First, check whether the postinstall hook already did this.** When the npm
+package is installed `-g` with `LINEAR_API_KEY` already set in the environment
+(or already saved at `~/.config/elnora-linear/.env`), the postinstall script
+runs `sync all` automatically. Run `sync verify` first; if `teams`, `projects`,
+`users`, and `workflows` already report `populated`, skip ahead to Step 4.
+
+Otherwise, populate the four auto-discoverable reference files (teams,
+projects, users, workflows) in one batch:
 
 ```sh
 elnora-linear sync all
@@ -201,8 +214,7 @@ Files the user skipped remain `"placeholder"` — that's fine.
 
 ## Step 5 — Smoke test
 
-Run the most-used slash command (or its CLI equivalent) to confirm the full
-stack works end-to-end:
+Run the most-used CLI verb to confirm the full stack works end-to-end:
 
 ```sh
 elnora-linear my-issues --limit 10
@@ -232,10 +244,15 @@ Tell the user, in this order:
    `~/.config/elnora-linear/*.json` (references).
 2. **What's populated vs what's not** — read straight from the final
    `sync verify` output. Don't paraphrase.
-3. **How to use it** — three suggested entry points:
-   - `/linear-search <query>` for natural-language search
-   - `/linear-my-issues` for their assigned issues
-   - `/linear-bulk` for cross-team state changes (dry-run by default)
+3. **How to use it** — three suggested entry points (use the form that
+   matches the user's harness):
+   - **Under Claude Code with the plugin installed:** `/linear-search <query>`,
+     `/linear-my-issues`, `/linear-bulk`.
+   - **Under any other agent (Codex / Cursor / Aider / Continue / Amp /
+     Jules / Roo) or standalone:** `elnora-linear issues search "<query>"`,
+     `elnora-linear my-issues`, `elnora-linear bulk --team X [filters]
+     --set-state Y` (dry-run by default; add `--yes` to apply). Full
+     dispatch table in [`AGENTS.md`](AGENTS.md).
 4. **If they opted into the curator** — mention `elnora-linear curator-run`
    is manual today; point them at `docs/scheduling.md` for launchd/systemd/
    Task Scheduler templates if they want it on a schedule.
