@@ -14,7 +14,7 @@ Three surfaces, one npm package:
 
 - **`elnora-linear` CLI** — complete coverage of the Linear GraphQL API. Scriptable, JSON-pipeable, with structured errors that AI agents can self-correct from.
 - **`linear-workspace` Claude Code plugin** — six slash commands, five specialized agents, and a router skill that picks the right one from intent. `/plugin install linear-workspace@elnora-linear`.
-- **`elnora-linear curator-run`** — config-driven automation that polls GitHub, Slack, MCP servers, and custom shell signals, asks an LLM what to do, auto-applies safe state changes (capped, debounced, audit-logged), and queues the rest for human review.
+- **`elnora-linear curator-run`** — config-driven automation that polls GitHub, Slack, and custom shell signals, asks an LLM what to do, auto-applies safe state changes (capped, debounced, audit-logged), and queues the rest for human review.
 
 Built end-to-end so AI coding agents can drive Linear with confidence: structured errors for self-correction, bounded mutations, soft-delete defaults, and a hard `--yes` gate on anything destructive.
 
@@ -80,7 +80,7 @@ A router skill (`linear-workspace`) dispatches to the right agent or command fro
 Polls configured signal sources, builds an LLM snapshot of your open issues, and dispatches per tier:
 
 - **HIGH** — state change applied immediately with a rationale comment. Capped at 20 mutations/run. Re-apply on the same `{issue, from, to}` debounced 14 days.
-- **MEDIUM** — proposed action queued in `~/.config/elnora-linear/state/curator-state.json` for a human (or Slack bot) to confirm.
+- **MEDIUM** — proposed action queued in `~/.config/elnora-linear/state/curator-state.json` for a human to review. Outbound Slack confirmation (DM-back + threaded replies) is in the spec but not yet shipped; today you read the state file directly or via the `linear-state-curator` agent.
 - **LOW** — added to the run report. No side effects.
 
 Signal sources supported:
@@ -90,8 +90,9 @@ Signal sources supported:
 | `github_commits` | Commit messages over a lookback window |
 | `github_pr` | Open / closed / merged PR events |
 | `slack_messages` | Messages in watched channels, optionally pattern-matched |
-| `mcp_tool` | Any MCP server tool (Stripe, custom server, etc.) |
 | `external_command` | Arbitrary CLI command output (JSON or text) — **off unless `LINEAR_ALLOW_EXTERNAL_COMMAND=1`** |
+
+`mcp_tool` is reserved in the schema for a future release. Configuring one today raises a "not yet implemented" error at collect time.
 
 Every applied action is appended to `~/.config/elnora-linear/state/curator-report.jsonl`. Without `ANTHROPIC_API_KEY` (or with `--collect-only`), the curator runs in diagnostic mode and only reports collected signals.
 
@@ -166,8 +167,7 @@ Full details in [SAFETY.md](SAFETY.md).
 | **`ANTHROPIC_API_KEY`** | Required for the LLM dispatch step. Without it the curator runs in `--collect-only` diagnostic mode. |
 | **`gh` CLI**, authenticated | Required for the `github_pr` signal source |
 | **`git` + a local clone** | Required for the `github_commits` signal source; the repo entry in `repos.json` must include `local_path` |
-| **`SLACK_TOKEN`** | Required for the `slack_messages` signal source |
-| **An MCP server** | Required for any `mcp_tool` signal source you configure |
+| **`SLACK_TOKEN`** | Required for the `slack_messages` signal source (reading channel history). No outbound posting yet. |
 | **`LINEAR_ALLOW_EXTERNAL_COMMAND=1`** | Off by default. Set this to enable the `external_command` signal source. |
 
 **npm dependencies** (installed automatically)
