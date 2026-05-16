@@ -2,7 +2,7 @@
 
 ## Quick Reference
 - **SLA:** 15min-72hrs (severity-based)
-- **Team:** Internal-Ops (INT-)
+- **Team:** *the team that owns this workflow in your workspace*
 - **Project:** Security Incidents
 
 ## Required Labels

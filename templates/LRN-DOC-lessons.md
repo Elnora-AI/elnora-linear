@@ -2,7 +2,7 @@
 
 ## Quick Reference
 - **SLA:** 10-20 days
-- **Team:** Internal-Ops (INT-)
+- **Team:** *the team that owns this workflow in your workspace*
 - **Project:** Lessons Learned
 
 ## Required Labels

@@ -4,7 +4,7 @@
 // relate / comment / label-add / label-remove / archive) into aliased GraphQL
 // documents — 100 ops execute as ~10 HTTP requests instead of 100. All name
 // lookups (state, label, project, team, assignee) happen once upfront, not per
-// op. State-name resolution honours each op's own team prefix (ELN-N → ELN) so
+// op. State-name resolution honours each op's own team prefix (ENG-N → ELN) so
 // `--team ELN` on a SEC-5 update doesn't silently corrupt SEC's "Done" state.
 
 import { readFileSync } from "node:fs";
@@ -235,7 +235,7 @@ export function setupIssuesCommand(program: Command): void {
 		.option("--labels <labels>", "Comma-separated label names")
 		.option("--state <state>", "Workflow state name")
 		.option("--due-date <date>", "Due date (YYYY-MM-DD)")
-		.option("--parent <parent>", "Parent issue ID (e.g., ELN-123)")
+		.option("--parent <parent>", "Parent issue ID (e.g., ENG-123)")
 		.option("--skip-label-check", "Bypass team label-policy validation (use only when intentionally violating policy)")
 		.action(
 			handleAsyncCommand(async (title: string, opts: Record<string, string>) => {
@@ -316,7 +316,7 @@ export function setupIssuesCommand(program: Command): void {
 
 	issues
 		.command("get <id>")
-		.description("Get issue details by ID (e.g., ELN-123 or UUID)")
+		.description("Get issue details by ID (e.g., ENG-123 or UUID)")
 		.option("--with-comments", "Also return up to 50 most recent comments on the issue")
 		.action(
 			handleAsyncCommand(async (id: string, opts: Record<string, string | boolean>) => {
@@ -597,7 +597,7 @@ export function setupIssuesCommand(program: Command): void {
 	issues
 		.command("batch-update <ids> <jsonPatchFile>")
 		.description(
-			"Apply the same update to multiple issues. <ids> = comma-separated ELN-X or UUIDs. <jsonPatchFile> = path to JSON IssueUpdateInput (or '-' for stdin).",
+			"Apply the same update to multiple issues. <ids> = comma-separated ENG-X or UUIDs. <jsonPatchFile> = path to JSON IssueUpdateInput (or '-' for stdin).",
 		)
 		.option("--yes", "Confirm batch update when N >= 10")
 		.action(

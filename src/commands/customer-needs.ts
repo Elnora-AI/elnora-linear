@@ -128,7 +128,7 @@ export function setupCustomerNeedsCommand(program: Command): void {
 		.requiredOption("--body <markdown>", "Need body (markdown)")
 		.option("--customer <idOrName>", "Customer (UUID, externalId, or exact name)")
 		.option("--customer-external-id <id>", "Customer external ID (alternative to --customer)")
-		.option("--issue <id>", "Link to issue (ELN-123 or UUID)")
+		.option("--issue <id>", "Link to issue (ENG-123 or UUID)")
 		.option("--project <name>", "Link to project (name or UUID)")
 		.option("--priority <0-4>", "Priority")
 		.option("--attachment <id>", "Existing attachment UUID to associate as the source")
@@ -191,7 +191,7 @@ export function setupCustomerNeedsCommand(program: Command): void {
 		.description("Update a customer need")
 		.option("--body <markdown>", "New body")
 		.option("--customer <idOrName>", "Move to a different customer")
-		.option("--issue <id>", "Move to a different issue (ELN-123 or UUID)")
+		.option("--issue <id>", "Move to a different issue (ENG-123 or UUID)")
 		.option("--project <name>", "Move to a different project")
 		.option("--priority <0-4>", "New priority")
 		.action(

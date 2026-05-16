@@ -2,7 +2,7 @@
 
 ## Quick Reference
 - **SLA:** 1-2 days
-- **Team:** Internal-Ops (INT-)
+- **Team:** *the team that owns this workflow in your workspace*
 - **Project:** Standard Changes
 
 ## Required Labels

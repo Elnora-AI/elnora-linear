@@ -116,8 +116,6 @@ Apply when an issue is scoped to one of your configured repos (see `repos.json`)
 | `Template: Operational-Request` | SLA-OPS-operational.md |
 | `Template: RCA` | RCA-DOC-root-cause.md |
 | `Template: Lessons-Learned` | LRN-DOC-lessons.md |
-| `Template: Training` | TRN-DOC-training.md (security training records) |
-| `Template: Policy-Review` | POL-REV-policy.md (annual policy review) |
 
 **SLAs:** See `sla-reference.md` for due date calculation by template.
 

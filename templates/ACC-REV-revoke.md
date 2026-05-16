@@ -2,7 +2,7 @@
 
 ## Quick Reference
 - **SLA:** 24 hours
-- **Team:** Internal-Ops (INT-)
+- **Team:** *the team that owns this workflow in your workspace*
 - **Project:** Access Revocation
 
 ## Required Labels

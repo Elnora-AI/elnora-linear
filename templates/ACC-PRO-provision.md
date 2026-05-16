@@ -2,7 +2,7 @@
 
 ## Quick Reference
 - **SLA:** Same day
-- **Team:** Internal-Ops (INT-)
+- **Team:** *the team that owns this workflow in your workspace*
 - **Project:** Access Provisioning
 
 ## Required Labels

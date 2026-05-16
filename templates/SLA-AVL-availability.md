@@ -2,7 +2,7 @@
 
 ## Quick Reference
 - **SLA:** 1hr-14 days (severity-based)
-- **Team:** Internal-Ops (INT-)
+- **Team:** *the team that owns this workflow in your workspace*
 - **Project:** Availability Incidents
 
 ## Severity Classification

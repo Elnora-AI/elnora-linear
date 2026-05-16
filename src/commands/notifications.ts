@@ -97,7 +97,7 @@ export function setupNotificationsCommand(program: Command): void {
 	notif
 		.command("mark-read")
 		.description("Mark all notifications for a given entity as read")
-		.option("--issue <id>", "Issue identifier (ELN-123) or UUID")
+		.option("--issue <id>", "Issue identifier (ENG-123) or UUID")
 		.option("--initiative <id>", "Initiative UUID")
 		.option("--initiative-update <id>", "Initiative update UUID")
 		.option("--at <iso>", "Read-at timestamp (default: now)")
@@ -120,7 +120,7 @@ export function setupNotificationsCommand(program: Command): void {
 	notif
 		.command("mark-unread")
 		.description("Mark all notifications for a given entity as unread")
-		.option("--issue <id>", "Issue identifier (ELN-123) or UUID")
+		.option("--issue <id>", "Issue identifier (ENG-123) or UUID")
 		.option("--initiative <id>", "Initiative UUID")
 		.option("--initiative-update <id>", "Initiative update UUID")
 		.action(
@@ -137,7 +137,7 @@ export function setupNotificationsCommand(program: Command): void {
 		.command("snooze")
 		.description("Snooze all notifications for an entity until a given time")
 		.requiredOption("--until <iso>", "Snooze until this ISO timestamp")
-		.option("--issue <id>", "Issue identifier (ELN-123) or UUID")
+		.option("--issue <id>", "Issue identifier (ENG-123) or UUID")
 		.option("--initiative <id>", "Initiative UUID")
 		.option("--initiative-update <id>", "Initiative update UUID")
 		.action(

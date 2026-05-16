@@ -62,7 +62,7 @@ export function setupAgentSessionsCommand(program: Command): void {
 
 	sessions
 		.command("create-on-issue <issueId>")
-		.description("Create an agent session on an issue (issueId can be ELN-123 or UUID)")
+		.description("Create an agent session on an issue (issueId can be ENG-123 or UUID)")
 		.option("--external-link <url>", "External agent-hosted page URL")
 		.action(
 			handleAsyncCommand(async (issueId: string, opts: Record<string, string>) => {

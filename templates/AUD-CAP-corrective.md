@@ -2,7 +2,7 @@
 
 ## Quick Reference
 - **SLA:** 5-30 days (severity-based)
-- **Team:** Internal-Ops (INT-)
+- **Team:** *the team that owns this workflow in your workspace*
 - **Project:** Corrective Actions
 
 ## Required Labels

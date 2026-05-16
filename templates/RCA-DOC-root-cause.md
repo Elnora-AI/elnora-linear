@@ -2,7 +2,7 @@
 
 ## Quick Reference
 - **SLA:** 3-20 days
-- **Team:** Internal-Ops (INT-)
+- **Team:** *the team that owns this workflow in your workspace*
 - **Project:** Root Cause Analysis
 
 ## Timeline by Severity

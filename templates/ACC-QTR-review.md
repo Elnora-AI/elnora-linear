@@ -2,7 +2,7 @@
 
 ## Quick Reference
 - **SLA:** 30 days
-- **Team:** Internal-Ops (INT-)
+- **Team:** *the team that owns this workflow in your workspace*
 - **Project:** Quarterly Access Reviews
 
 ## Required Labels

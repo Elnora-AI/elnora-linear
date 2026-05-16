@@ -53,7 +53,7 @@ export function setupFavoritesCommand(program: Command): void {
 		.description(
 			"Pin a target to the sidebar. Pass exactly one of --issue/--project/--view/--cycle/--document/--folder.",
 		)
-		.option("--issue <id>", "Issue identifier (e.g. ELN-123) or UUID")
+		.option("--issue <id>", "Issue identifier (e.g. ENG-123) or UUID")
 		.option("--project <nameOrId>", "Project name or UUID")
 		.option("--view <id>", "Custom view UUID")
 		.option("--cycle <id>", "Cycle UUID")

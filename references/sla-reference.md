@@ -44,8 +44,6 @@ Due date = today + SLA days (ISO format YYYY-MM-DD).
 | Template Label | SLA | Due Date Calculation |
 |----------------|-----|---------------------|
 | `Template: Access-Review` | 30 days | Today + 30 days |
-| `Template: Policy-Review` | 30 days | Today + 30 days |
-| `Template: Training` | 30 days | Today + 30 days |
 | `Template: Management-Review` | 30 days | Today + 30 days |
 | `Template: Risk-Assessment` | 30 days | Today + 30 days |
 | `Template: Vendor-Assessment` | 30 days | Today + 30 days |

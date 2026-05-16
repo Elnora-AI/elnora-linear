@@ -2,7 +2,7 @@
 
 ## Quick Reference
 - **SLA:** RTO: 2 hours
-- **Team:** Internal-Ops (INT-)
+- **Team:** *the team that owns this workflow in your workspace*
 - **Project:** Backup & DR Testing
 
 ## Required Labels
