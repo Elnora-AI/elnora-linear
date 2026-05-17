@@ -68,7 +68,11 @@ export async function runCuratorSlackBridge(
 		env: process.env,
 	});
 
-	await new Promise<void>((resolveOnce) => {
+	// The child owns the process exit code. We never resolve this Promise;
+	// instead, one of the listeners below calls process.exit and the runtime
+	// tears down. Resolving early would let the caller hit
+	// `throw new Error("unreachable")` while the child is still running.
+	await new Promise<never>((_, reject) => {
 		child.on("error", (err) => {
 			process.stderr.write(
 				`[error] Could not spawn ${resolvePython()}: ${err.message}\n` +
@@ -79,15 +83,15 @@ export async function runCuratorSlackBridge(
 		child.on("exit", (code, signal) => {
 			if (signal) {
 				process.kill(process.pid, signal);
+				return;
 			}
 			process.exit(code ?? 1);
 		});
-		// Either handler above calls process.exit; this resolve is just to
-		// keep the type checker happy with the Promise<void> return.
-		resolveOnce();
+		// reject is unused; kept so TS infers the second parameter.
+		void reject;
 	});
 
-	// Unreachable — process.exit always fires before we get here.
+	// Unreachable — one of the listeners above always calls process.exit first.
 	throw new Error("unreachable");
 }
 
