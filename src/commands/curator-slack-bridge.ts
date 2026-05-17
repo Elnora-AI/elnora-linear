@@ -107,9 +107,7 @@ export function setupCuratorSlackBridgeCommand(program: Command): void {
 		.option("-v, --verbose", "More verbose progress output")
 		.action(async (mode: string, opts: CuratorSlackBridgeOptions) => {
 			if (mode !== "post-pending" && mode !== "resolve" && mode !== "tick") {
-				process.stderr.write(
-					`[error] Unknown bridge mode "${mode}". Expected one of: post-pending, resolve, tick.\n`,
-				);
+				process.stderr.write(`[error] Unknown bridge mode "${mode}". Expected one of: post-pending, resolve, tick.\n`);
 				process.exit(2);
 			}
 			await runCuratorSlackBridge(mode, opts);
