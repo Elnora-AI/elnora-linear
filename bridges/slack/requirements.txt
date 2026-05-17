@@ -1,0 +1,5 @@
+# Runtime dependencies for bridges/slack/bridge.py.
+# Install with: pip install -r bridges/slack/requirements.txt
+
+slack-sdk>=3.27.0
+anthropic>=0.40.0
