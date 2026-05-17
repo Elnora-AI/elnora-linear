@@ -19,22 +19,23 @@ automatically already auto-applies upstream (HIGH tier), and resulting state
 changes are visible directly in Linear.
 
 It's a single Python file with two dependencies (`slack-sdk`, `anthropic`).
-Drop it in next to your CLI, schedule it after `curator-run`, and the curator's
-MEDIUM tier starts working.
-
-> **Not shipped via the npm tarball.** `bridges/` is excluded from
-> `package.json#files`. Either `git clone` this repo or download
-> `bridges/slack/bridge.py` directly next to where you run the CLI.
+The npm tarball bundles it at `bridges/slack/bridge.py` and exposes a wrapper
+subcommand — `elnora-linear curator-slack-bridge tick` — so most users never
+need to know the file path.
 
 ## Install
 
 ```sh
-pip install slack-sdk anthropic   # Python 3.9+
+npm install -g @elnora-ai/linear         # bundles bridges/slack/ for you
+pip install slack-sdk anthropic          # Python 3.9+
 ```
 
-The bridge calls the `elnora-linear` CLI by name (resolved via `PATH`), so make
-sure `npm install -g @elnora-ai/linear` has already run. Override the path with
-`ELNORA_LINEAR_BIN=/custom/path/elnora-linear` if needed.
+The bridge calls the `elnora-linear` CLI by name (resolved via `PATH`), so the
+global npm install handles both the CLI and the bridge in one step. Override
+the CLI path with `ELNORA_LINEAR_BIN=/custom/path/elnora-linear` if needed.
+
+If your system Python is PEP 668 managed (Debian/Ubuntu, recent macOS), use a
+virtualenv or `pipx` and point the wrapper at it with `PYTHON_BIN=/path/to/python`.
 
 ## Slack app setup (one-time)
 
@@ -48,9 +49,10 @@ sure `npm install -g @elnora-ai/linear` has already run. Override the path with
 
 ## Configure
 
-The bridge follows the same `references/` convention as the rest of the CLI.
-Adopters' populated copies live wherever `LINEAR_REFERENCES_DIR` points (the
-defaults match the upstream CLI: `~/.config/elnora-linear/references/`).
+The bridge reads the same reference files the CLI writes. Adopters' populated
+copies live wherever `LINEAR_REFERENCES_DIR` points; the default matches the
+CLI: `~/.config/elnora-linear/` (no `references/` subdir — the CLI's `sync`
+writes directly to that directory).
 
 ### Required env vars
 
@@ -63,9 +65,10 @@ defaults match the upstream CLI: `~/.config/elnora-linear/references/`).
 
 | Variable | Default | Notes |
 |---|---|---|
-| `LINEAR_REFERENCES_DIR` | `~/.config/elnora-linear/references` | Where `slack.json` + `users.json` live |
+| `LINEAR_REFERENCES_DIR` | `~/.config/elnora-linear` | Where `slack.json` + `users.json` live (matches CLI default) |
 | `LINEAR_CURATOR_STATE_DIR` | `~/.config/elnora-linear/state` | Where the upstream curator writes its state |
 | `ELNORA_LINEAR_BIN` | `$(which elnora-linear)` | Override the CLI path |
+| `PYTHON_BIN` | `python3` | Override the Python interpreter (set this to your venv's `bin/python` if you installed deps in a virtualenv) |
 | `ANTHROPIC_MODEL` | `claude-sonnet-4-6` | Override the model used by the batch resolver |
 
 ### What's auto-populated vs manual
@@ -78,15 +81,18 @@ Linear API once `LINEAR_API_KEY` is set:
 |---|---|---|
 | `teams.json` | Yes | — |
 | `projects.json` | Yes | — |
-| `users.json` | `name` + `email` | `slack_user_id` for each user the bridge should DM, `key` (a short alias) |
-| `workflows.json` | Yes | — |
+| `users.json` | `name`, `email`, `linear_user_id`, `key` (auto-derived) | `slack_user_id` for each user the bridge should DM. Optionally override the auto-derived `key` if it collides with another user or doesn't match the alias you want in `allowed_dm_users`. |
+| `workflows.json` | Yes (`states`); curator `rules` preserved across syncs | — |
 | `slack.json` | No | All fields (channel IDs, allowlists, bridge fields) |
 | `repos.json` | No | `local_path` (machine-specific) + GitHub `org`/`name` |
 | `signal-sources.json` | No | Pick which sources to enable + their configs |
 
-The Slack-specific fields all live on `slack.json` so the bridge has no
-separate config file to maintain. See `references/slack.example.json` for a
-populated example.
+`sync users` preserves `slack_user_id` and any user-overridden `key` across
+future re-syncs (keyed off `linear_user_id`), so your manual edits survive
+postinstall re-runs and `elnora-linear sync all` invocations. The Slack-
+specific config fields all live on `slack.json` so the bridge has no separate
+config file to maintain. See `references/slack.example.json` for a populated
+example.
 
 ### Reference files
 
@@ -116,17 +122,23 @@ populated.
 
 ## Run
 
+The npm-installed wrapper is the recommended invocation — it resolves the
+bundled `bridge.py` path for you:
+
 ```sh
 # Recommended: post new MEDIUM questions and then poll for replies in one pass.
-python3 bridges/slack/bridge.py tick
+elnora-linear curator-slack-bridge tick
 
 # Or split the two phases (e.g. if you want to resolve more frequently than you post)
-python3 bridges/slack/bridge.py post-pending
-python3 bridges/slack/bridge.py resolve
+elnora-linear curator-slack-bridge post-pending
+elnora-linear curator-slack-bridge resolve
 
 # --dry-run logs what would happen without posting or mutating
-python3 bridges/slack/bridge.py tick --dry-run --verbose
+elnora-linear curator-slack-bridge tick --dry-run --verbose
 ```
+
+You can still invoke the Python file directly if you cloned the repo or need
+fine control — `python3 bridges/slack/bridge.py tick` works identically.
 
 The bridge keeps its own side-state at
 `${LINEAR_CURATOR_STATE_DIR}/slack-bridge-state.json` — it tracks which
@@ -134,31 +146,11 @@ questions have already been posted so reruns don't duplicate DMs.
 
 ## Schedule
 
-The bridge is designed to run after each `curator-run`. Typical cadence is one
-tick a few minutes after the curator fires, plus one or two ticks later in the
-day to pick up replies.
-
-### macOS (launchd)
-
-Copy `launchd.example.plist` into `~/Library/LaunchAgents/` (substitute the
-`{{REPO_ROOT}}` placeholder with the absolute path you cloned the package
-into) and bootstrap:
-
-```sh
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.example.linear-curator-bridge.plist
-```
-
-### Linux (cron)
-
-```cron
-35 9 * * 1-5  elnora-linear curator-run --output text
-38 9 * * 1-5  python3 /path/to/bridges/slack/bridge.py tick
-30 11 * * 1-5 python3 /path/to/bridges/slack/bridge.py tick
-30 14 * * 1-5 python3 /path/to/bridges/slack/bridge.py tick
-```
-
-Use `systemd` timers if you prefer — there's nothing cron-specific in the
-script.
+The bridge runs after each `curator-run`. Templates for launchd, systemd, and
+cron live in [`docs/scheduling.md`](../../docs/scheduling.md) under the **Slack
+bridge** heading — that doc is the canonical scheduling reference for both the
+curator and the bridge. The shipped `launchd.example.plist` in this directory
+is a ready-to-edit starting point referenced from there.
 
 ## Coexistence with a general chat bot
 

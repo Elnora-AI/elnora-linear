@@ -425,8 +425,8 @@ operator notes in `bridges/slack/README.md`.
 
 Do these in order. Confirm each before the next.
 
-1. **Python deps.** The bridge is a single Python file with two
-   dependencies. Verify Python first, then install:
+1. **Python deps.** The bridge is a single Python file the CLI ships with
+   two dependencies. Verify Python first, then install:
 
    ```sh
    python3 --version   # 3.9+
@@ -440,13 +440,21 @@ Do these in order. Confirm each before the next.
    > Your Python is PEP 668 managed. Two options:
    > (a) `pipx install slack-sdk && pipx inject slack-sdk anthropic`
    > (b) virtualenv: `python3 -m venv ~/.local/share/elnora-bridge && ~/.local/share/elnora-bridge/bin/pip install slack-sdk anthropic`
-   > Pick one. If you go with (b), tell me — the schedule step needs to
-   > know your venv's python path.
+   > Pick one. If you go with (b), tell me — the bridge needs to know
+   > the venv's `bin/python` path via the `PYTHON_BIN` env var.
 
    Wait for them to pick one; do not silently override with
-   `--break-system-packages`. Remember which path they chose — substeps
-   6 (dry-run) and 7 (scheduling) need the venv python path if they
-   picked (b).
+   `--break-system-packages`. If they pick (b), persist the venv python
+   path to `.env` so the bridge wrapper finds it:
+
+   ```sh
+   printf 'PYTHON_BIN=%s\n' "$HOME/.local/share/elnora-bridge/bin/python" >> ~/.config/elnora-linear/.env
+   chmod 600 ~/.config/elnora-linear/.env
+   ```
+
+   The `elnora-linear curator-slack-bridge` wrapper reads `PYTHON_BIN`
+   when present; otherwise it shells out to `python3`. This works for
+   both the dry-run smoke test and any scheduled run.
 
 2. **Persist the bot token** as `SLACK_BOT_TOKEN` (the bridge reads this
    name specifically; the curator reader uses `SLACK_TOKEN`. Set both to
@@ -529,11 +537,11 @@ Do these in order. Confirm each before the next.
    before scheduling it:
 
    ```sh
-   python3 "$(npm root -g)/@elnora-ai/linear/bridges/slack/bridge.py" tick --dry-run --verbose
+   elnora-linear curator-slack-bridge tick --dry-run --verbose
    ```
 
-   (If the user picked virtualenv in substep 1, swap `python3` for the
-   venv's interpreter, e.g. `~/.local/share/elnora-bridge/bin/python`.)
+   The wrapper resolves the bundled `bridge.py` path and spawns it under
+   `python3` (or `$PYTHON_BIN` from the `.env` file if substep 1 set it).
 
    Gate: exit 0 and the log confirms it loaded `slack.json` + `users.json`
    (and reports that `SLACK_BOT_TOKEN` + `ANTHROPIC_API_KEY` are set).
@@ -547,17 +555,18 @@ Do these in order. Confirm each before the next.
    - Exit 4 (`Upstream state lock held`): another `curator-run` is
      mid-flight. Wait for it to finish and retry.
    - `ModuleNotFoundError: slack_sdk` or `anthropic`: the deps landed in
-     a different Python than `python3` resolves to — re-run with the
-     venv/pipx interpreter (see substep 1).
+     a different Python than the wrapper resolves to. If you used a venv
+     in substep 1, confirm `PYTHON_BIN` is in `~/.config/elnora-linear/.env`
+     pointing at the venv's `bin/python`.
 
 7. **Schedule it.** Don't run the bridge on demand — schedule it after
    each `curator-run` so new MEDIUM questions get DM'd promptly. Point
    the user at the **Slack bridge** section of `docs/scheduling.md` for
-   launchd / systemd / cron templates. The shipped
-   `bridges/slack/launchd.example.plist` is the macOS starting point.
-   If the user picked the virtualenv path in substep 1, the example
-   plist's `/usr/bin/python3` won't see the bridge's deps — they must
-   swap that string for the venv's python interpreter before bootstrap.
+   launchd / systemd / cron templates that invoke
+   `elnora-linear curator-slack-bridge tick`. The shipped
+   `bridges/slack/launchd.example.plist` is one alternative that spawns
+   `bridge.py` directly — fine if you prefer that style, but the wrapper
+   command is easier to manage and respects `$PYTHON_BIN` automatically.
 
 Gate: re-run `elnora-linear sync verify --output json`. `slack` should
 still report `status: "populated"`. There's no separate verifier for the

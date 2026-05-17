@@ -30,7 +30,8 @@ For a guided multi-step install (verify → key → sync → smoke-test), point 
 | Same change to many | `elnora-linear bulk --team X [filters] --set-state Y` — dry-run by default; `--yes` to apply |
 | Audit stale / wrong-state | `elnora-linear cleanup --team X` |
 | Curator (signals → proposals) | `elnora-linear curator-run [--collect-only] [--dry-run]` |
-| Refresh refs | `elnora-linear sync all` |
+| Slack bridge — DM assignees with MEDIUM-tier questions | `elnora-linear curator-slack-bridge <tick\|post-pending\|resolve> [--dry-run] [-v]` — needs `pip install slack-sdk anthropic` + `SLACK_BOT_TOKEN`; see `bridges/slack/README.md` |
+| Refresh refs | `elnora-linear sync all` — preserves `slack_user_id` and user-curated fields across re-syncs |
 | What's populated | `elnora-linear sync verify --output json` |
 | Anything else | `elnora-linear --help` — full GraphQL coverage (comments, views, customers, states, projects, labels, cycles, initiatives, milestones, attachments, status updates, agent sessions, webhooks, …) |
 
