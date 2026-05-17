@@ -10,6 +10,10 @@
 
 ## Install
 
+> **The CLI and the Claude Code plugin are two separate installs.** The plugin's agents, skills, and slash commands all shell out to the `elnora-linear` binary — so you must install the CLI **first**, even if your only goal is to use the plugin. `/plugin install` does not install the CLI.
+
+### Step 1 — Install the CLI (required for everyone)
+
 ```sh
 npm install -g @elnora-ai/linear
 elnora-linear issues list                       # prompts for your Linear API key on first run
@@ -17,30 +21,44 @@ elnora-linear issues list                       # prompts for your Linear API ke
 
 Get a key at [linear.app/settings/api](https://linear.app/settings/api). It's saved to `~/.config/elnora-linear/.env` (mode `0600`).
 
-**As a Claude Code plugin** — slash commands + dispatched subagents:
-
-```
-/plugin marketplace add Elnora-AI/elnora-linear
-/plugin install linear-workspace@elnora-linear
-```
-
-**With Codex, Cursor, or any other AI coding agent** — install the CLI above, then drop [`AGENTS.md`](AGENTS.md) at your project root. These agents read it natively for the intent → CLI dispatch table.
-
-> **Installing via an AI agent?** Point it at [`INSTALL_FOR_AGENTS.md`](INSTALL_FOR_AGENTS.md) — a gated, step-by-step runbook to verify the install, collect the key, sync references, and smoke-test.
-
 **Auto-sync on install.** If `LINEAR_API_KEY` is already in your environment (or saved at `~/.config/elnora-linear/.env`) when you run `npm install -g`, the postinstall hook populates teams / projects / users / workflows from your Linear workspace. Otherwise run `elnora-linear sync all` later.
 
 Escape hatches for the auto-sync (any one disables it): `ELNORA_LINEAR_SKIP_POSTINSTALL=1`, `CI=true` (auto-detected), or non-global installs.
+
+### Step 2 — Add the Claude Code plugin (optional, Claude Code only)
+
+**Only after Step 1 succeeds.** The plugin adds slash commands and dispatched subagents on top of the CLI. Run these as **two separate slash commands** (paste the first, hit enter, wait for it to finish, then paste the second):
+
+```
+/plugin marketplace add Elnora-AI/elnora-linear
+```
+
+```
+/plugin install linear-workspace@elnora-linear
+```
+
+Verify both are wired up:
+
+```sh
+elnora-linear --version                         # CLI on PATH
+```
+
+Then `/plugin` inside Claude Code should list `linear-workspace` as enabled. If `elnora-linear --version` fails, go back to Step 1 — the plugin's agents will not work without the binary on PATH.
+
+### Using Codex, Cursor, or any other AI coding agent
+
+Install the CLI (Step 1 above), then drop [`AGENTS.md`](AGENTS.md) at your project root. These agents read it natively for the intent → CLI dispatch table. No plugin install needed — the plugin is Claude-Code-only.
+
+> **Installing via an AI agent?** Point it at [`INSTALL_FOR_AGENTS.md`](INSTALL_FOR_AGENTS.md) — a gated, step-by-step runbook to verify the install, collect the key, sync references, and smoke-test.
 
 ---
 
 ## What you get
 
-Three surfaces, one npm package:
+Three surfaces, two installs:
 
-- **`elnora-linear` CLI** — complete coverage of the Linear GraphQL API. Scriptable, JSON-pipeable, structured errors that agents can self-correct from.
-- **`linear-workspace` Claude Code plugin** — slash commands, five specialized agents, and a router skill that picks the right one from intent.
-- **`elnora-linear curator-run`** — config-driven automation that polls GitHub, Slack, and custom shell signals, asks an LLM what to do, auto-applies safe state changes (capped, debounced, audit-logged), and queues the rest for human review.
+- **`elnora-linear` CLI** *(npm package — Step 1 above)* — complete coverage of the Linear GraphQL API. Scriptable, JSON-pipeable, structured errors that agents can self-correct from. Also ships `elnora-linear curator-run`, the config-driven automation that polls GitHub, Slack, and custom shell signals, asks an LLM what to do, auto-applies safe state changes (capped, debounced, audit-logged), and queues the rest for human review.
+- **`linear-workspace` Claude Code plugin** *(separate `/plugin install` — Step 2 above)* — slash commands, five specialized agents, and a router skill that picks the right one from intent. Every agent delegates to the CLI from Step 1.
 
 ---
 
