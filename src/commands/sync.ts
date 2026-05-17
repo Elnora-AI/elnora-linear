@@ -14,7 +14,7 @@
 // What it does NOT do (yet — coming with the curator PR):
 //   - Interactive prompts for slack channels, repos, signal sources
 
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -177,6 +177,62 @@ function writeReferenceJson(dir: string, name: ReferenceName, body: object): str
 	return path;
 }
 
+/**
+ * Read the existing reference file as a parsed object, or null if absent or a
+ * placeholder/example template. Used by sync to preserve manually-curated
+ * fields that the Linear API doesn't return (e.g. users.slack_user_id,
+ * projects.lead, workflows.rules).
+ */
+export function readExistingReferenceDoc(dir: string, name: ReferenceName): Record<string, unknown> | null {
+	const path = join(dir, `${name}.json`);
+	if (!existsSync(path)) return null;
+	try {
+		const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
+		if (typeof parsed !== "object" || parsed === null) return null;
+		const obj = parsed as Record<string, unknown>;
+		if (obj._placeholder === true || obj._example === true) return null;
+		return obj;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Merge fields the mapper didn't produce from the prior entry. Mapped fields
+ * always win — they're the source of truth from Linear. Anything else in the
+ * prior entry (manual curation: slack_user_id, lead, sla, default_project,
+ * etc.) survives the sync.
+ */
+function mergePreservedFields<T extends object>(mapped: T, prior: Record<string, unknown> | undefined): T {
+	if (!prior) return mapped;
+	return { ...prior, ...mapped } as T;
+}
+
+/**
+ * Build a `Map<string, entry>` from an `unknown` array, deriving each entry's
+ * key via `keyFn`. Returns null keys are skipped so callers don't have to
+ * pre-filter. Entries that aren't objects are dropped.
+ */
+function indexBy(
+	items: unknown,
+	keyFn: (item: Record<string, unknown>) => string | null,
+): Map<string, Record<string, unknown>> {
+	const map = new Map<string, Record<string, unknown>>();
+	if (!Array.isArray(items)) return map;
+	for (const item of items) {
+		if (typeof item !== "object" || item === null) continue;
+		const obj = item as Record<string, unknown>;
+		const key = keyFn(obj);
+		if (key !== null) map.set(key, obj);
+	}
+	return map;
+}
+
+function projectMergeKey(team: unknown, name: unknown): string | null {
+	if (typeof team !== "string" || typeof name !== "string") return null;
+	return `${team}::${name}`;
+}
+
 function emitReport(report: SyncReport, mode: OutputMode): void {
 	if (mode === "json") {
 		process.stdout.write(`${JSON.stringify(report)}\n`);
@@ -217,19 +273,27 @@ async function listAllTeams(client: LinearClient) {
 
 async function syncTeams(client: LinearClient, dir: string): Promise<SyncReport> {
 	const teamNodes = await listAllTeams(client);
-	const teams = teamNodes.map((t) => mapTeam({ key: t.key, name: t.name, description: t.description }));
+	const prior = readExistingReferenceDoc(dir, "teams");
+	const priorByKey = indexBy(prior?.teams, (t) => (typeof t.key === "string" ? t.key : null));
+	const teams = teamNodes.map((t) => {
+		const mapped = mapTeam({ key: t.key, name: t.name, description: t.description });
+		return mergePreservedFields(mapped, priorByKey.get(mapped.key));
+	});
 	const path = writeReferenceJson(dir, "teams", { teams });
 	return { target: "teams", written: teams.length, path };
 }
 
 async function syncProjects(client: LinearClient, dir: string): Promise<SyncReport> {
 	const teamNodes = await listAllTeams(client);
+	const prior = readExistingReferenceDoc(dir, "projects");
+	const priorByTeamName = indexBy(prior?.projects, (p) => projectMergeKey(p.team, p.name));
 	const projects: MappedProject[] = [];
 	for (const team of teamNodes) {
 		const firstPage = await team.projects({ first: 100 });
 		const projectNodes = await drainConnection(firstPage);
 		for (const p of projectNodes) {
-			projects.push(mapProject({ name: p.name, description: p.description, state: p.state }, team.key));
+			const mapped = mapProject({ name: p.name, description: p.description, state: p.state }, team.key);
+			projects.push(mergePreservedFields(mapped, priorByTeamName.get(`${mapped.team}::${mapped.name}`)));
 		}
 	}
 	const path = writeReferenceJson(dir, "projects", { projects });
@@ -239,13 +303,30 @@ async function syncProjects(client: LinearClient, dir: string): Promise<SyncRepo
 async function syncUsers(client: LinearClient, dir: string): Promise<SyncReport> {
 	const firstPage = await client.users({ first: 250 });
 	const userNodes = await drainConnection(firstPage);
-	const users = userNodes.map((u) => mapUser({ id: u.id, name: u.name, email: u.email, displayName: u.displayName }));
+	const prior = readExistingReferenceDoc(dir, "users");
+	// Prefer linear_user_id (stable across renames). Fall back to key for any
+	// prior entry that predates the linear_user_id field.
+	const priorByLinearId = indexBy(prior?.users, (u) =>
+		typeof u.linear_user_id === "string" ? u.linear_user_id : null,
+	);
+	const priorByKey = indexBy(prior?.users, (u) =>
+		typeof u.linear_user_id === "string" ? null : typeof u.key === "string" ? u.key : null,
+	);
+	const users = userNodes.map((u) => {
+		const mapped = mapUser({ id: u.id, name: u.name, email: u.email, displayName: u.displayName });
+		const priorEntry = priorByLinearId.get(mapped.linear_user_id) ?? priorByKey.get(mapped.key);
+		return mergePreservedFields(mapped, priorEntry);
+	});
 	const path = writeReferenceJson(dir, "users", { users });
 	return { target: "users", written: users.length, path };
 }
 
 async function syncWorkflows(client: LinearClient, dir: string): Promise<SyncReport> {
 	const teamNodes = await listAllTeams(client);
+	const prior = readExistingReferenceDoc(dir, "workflows");
+	const priorByStateKey = indexBy(prior?.states, (s) =>
+		typeof s.name === "string" && typeof s.type === "string" ? `${s.name}|${s.type}` : null,
+	);
 	const seen = new Set<string>();
 	const states: MappedWorkflowState[] = [];
 	for (const team of teamNodes) {
@@ -257,10 +338,12 @@ async function syncWorkflows(client: LinearClient, dir: string): Promise<SyncRep
 			const key = `${mapped.name}|${mapped.type}`;
 			if (seen.has(key)) continue;
 			seen.add(key);
-			states.push(mapped);
+			states.push(mergePreservedFields(mapped, priorByStateKey.get(key)));
 		}
 	}
-	const path = writeReferenceJson(dir, "workflows", { states, rules: [] });
+	// Curator rules are entirely user-authored — never overwrite them on sync.
+	const rules = Array.isArray(prior?.rules) ? prior.rules : [];
+	const path = writeReferenceJson(dir, "workflows", { states, rules });
 	return { target: "workflows", written: states.length, path };
 }
 
@@ -276,6 +359,15 @@ async function dispatchSync(target: AutoSyncTarget, client: LinearClient, dir: s
 			return syncWorkflows(client, dir);
 	}
 }
+
+/** Internal entry points exported for tests — not part of the public API. */
+export const _internal = {
+	syncTeams,
+	syncProjects,
+	syncUsers,
+	syncWorkflows,
+	mergePreservedFields,
+};
 
 export async function runSyncTarget(target: AutoSyncTarget, opts: SyncOptions): Promise<void> {
 	const dir = resolveSyncWriteDir(opts.referencesDir);
