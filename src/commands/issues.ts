@@ -350,6 +350,7 @@ export function setupIssuesCommand(program: Command): void {
 				let formatted: Record<string, unknown>;
 				if (resolvedStateName) {
 					formatted = {
+						id: issue.id,
 						identifier: issue.identifier,
 						title,
 						state: resolvedStateName,
@@ -503,10 +504,13 @@ export function setupIssuesCommand(program: Command): void {
 					requireYes(opts, `permanently delete issue ${id}`);
 				}
 				const client = await getClient();
-				const issue = await findIssueByIdentifier(client, id);
+				// Include archived rows so a redundant archive is a no-op, not an error.
+				const issue = await findIssueByIdentifier(client, id, { includeArchived: !opts.permanent });
 				if (opts.permanent) {
 					const payload = await client.deleteIssue(issue.id);
 					outputSuccess({ deleted: payload.success, id: issue.identifier, permanent: true });
+				} else if (issue.archivedAt) {
+					outputSuccess({ archived: true, id: issue.identifier, alreadyArchived: true });
 				} else {
 					const payload = await client.archiveIssue(issue.id);
 					outputSuccess({ archived: payload.success, id: issue.identifier });
@@ -520,7 +524,7 @@ export function setupIssuesCommand(program: Command): void {
 		.action(
 			handleAsyncCommand(async (id: string) => {
 				const client = await getClient();
-				const issue = await findIssueByIdentifier(client, id);
+				const issue = await findIssueByIdentifier(client, id, { includeArchived: true });
 				const payload = await client.unarchiveIssue(issue.id);
 				outputSuccess({ restored: payload.success, id: issue.identifier });
 			}),
@@ -622,7 +626,9 @@ export function setupIssuesCommand(program: Command): void {
 
 	issues
 		.command("batch-create <jsonFile>")
-		.description("Create multiple issues from a JSON array file (or '-' for stdin). Cap 50. N>=10 requires --yes.")
+		.description(
+			"Create multiple issues from a JSON array of IssueCreateInput (or '-' for stdin). Cap 50. N>=10 requires --yes. NOTE: requires raw UUIDs (teamId, projectId, labelIds, stateId) — name resolution is NOT performed. See references/cli-reference.md.",
+		)
 		.option("--yes", "Confirm batch creation when N >= 10")
 		.option(
 			"--skip-project-check",
@@ -770,7 +776,7 @@ export function setupIssuesCommand(program: Command): void {
 	issues
 		.command("bulk-ops <opsFile>")
 		.description(
-			"Execute a JSON file of bulk operations as batched GraphQL mutations. Ops: create | update | relate | comment | label-add | label-remove | archive. Pass '-' to read from stdin.",
+			'Execute a JSON file of bulk operations as batched GraphQL mutations. Each op is an object with a "kind" field: create | update | relate | comment | label-add | label-remove | archive. Example: [{"kind":"update","id":"ENG-1","state":"Done"}]. Pass \'-\' to read from stdin. See references/cli-reference.md for the full schema.',
 		)
 		.requiredOption("--team <team>", "Team key for state-name resolution (e.g. ENG)")
 		.option("--batch-size <n>", "Mutations per HTTP request (default 10)", "10")
@@ -1143,6 +1149,7 @@ async function formatIssue(
 	}
 
 	const result: Record<string, unknown> = {
+		id: issue.id,
 		identifier: issue.identifier,
 		title: issue.title,
 		state: state?.name ?? null,
@@ -1156,9 +1163,9 @@ async function formatIssue(
 	};
 
 	if (detailed) {
-		result.id = issue.id;
 		result.createdAt = issue.createdAt;
 		result.updatedAt = issue.updatedAt;
+		result.archivedAt = issue.archivedAt ?? null;
 		result.description = issue.description ?? null;
 		const parent = await issue.parent;
 		result.parent = parent ? { id: parent.id, identifier: parent.identifier, title: parent.title } : null;

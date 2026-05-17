@@ -5,6 +5,7 @@ import {
 	parseDate,
 	parseHealth,
 	parseLimit,
+	parseNeedPriority,
 	parsePositiveInt,
 	parsePriority,
 	parseProjectState,
@@ -69,6 +70,27 @@ describe("parsePriority", () => {
 		expect(() => parsePriority("5")).toThrow(ValidationError);
 		expect(() => parsePriority("-1")).toThrow(ValidationError);
 		expect(() => parsePriority("urgent")).toThrow(ValidationError);
+	});
+});
+
+describe("parseNeedPriority", () => {
+	it("returns undefined for missing", () => {
+		expect(parseNeedPriority(undefined)).toBeUndefined();
+	});
+
+	it.each([0, 1])("accepts %s (CustomerNeed importance flag)", (n) => {
+		expect(parseNeedPriority(String(n))).toBe(n);
+	});
+
+	it("rejects Issue-priority values (2/3/4) the server would reject anyway", () => {
+		expect(() => parseNeedPriority("2")).toThrow(ValidationError);
+		expect(() => parseNeedPriority("3")).toThrow(ValidationError);
+		expect(() => parseNeedPriority("4")).toThrow(ValidationError);
+	});
+
+	it("rejects negative and non-numeric", () => {
+		expect(() => parseNeedPriority("-1")).toThrow(ValidationError);
+		expect(() => parseNeedPriority("important")).toThrow(ValidationError);
 	});
 });
 

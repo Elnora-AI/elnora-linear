@@ -346,6 +346,7 @@ describe("bulkSearchIssues", () => {
 
 describe("formatBulkIssue", () => {
 	const sample = {
+		id: "issue-uuid-1",
 		identifier: "ENG-1",
 		title: "title",
 		description: "desc",
@@ -361,11 +362,13 @@ describe("formatBulkIssue", () => {
 		url: "https://linear.app/x",
 		updatedAt: "2026-01-01",
 		createdAt: "2026-01-01",
+		archivedAt: null,
 	};
 
 	it("returns the slim shape by default", () => {
 		const out = formatBulkIssue(sample);
 		expect(out).toMatchObject({
+			id: "issue-uuid-1",
 			identifier: "ENG-1",
 			state: "In Progress",
 			assignee: "Alice",
@@ -376,11 +379,19 @@ describe("formatBulkIssue", () => {
 		expect(out.children).toBeUndefined();
 	});
 
-	it("includes children/description/relations when withFull=true", () => {
-		const out = formatBulkIssue(sample, true);
+	it("exposes the issue UUID so users can recover identifiers after archive", () => {
+		// Regression: without id in the default shape, the CLI provided no path to
+		// the UUID of an archived issue (ENG-N lookup excludes archived rows).
+		const out = formatBulkIssue(sample);
+		expect(out.id).toBe("issue-uuid-1");
+	});
+
+	it("includes children/description/relations/archivedAt when withFull=true", () => {
+		const out = formatBulkIssue({ ...sample, archivedAt: "2026-05-17T00:00:00Z" }, true);
 		expect(out.description).toBe("desc");
 		expect(out.children).toEqual(["ENG-2"]);
 		expect(out.relations).toEqual([{ type: "related", with: "OPS-9" }]);
+		expect(out.archivedAt).toBe("2026-05-17T00:00:00Z");
 	});
 });
 
