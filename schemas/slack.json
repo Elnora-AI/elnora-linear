@@ -39,6 +39,19 @@
 			"type": "array",
 			"items": { "type": "string" },
 			"description": "User keys (resolving via users.json to slack_user_id) the curator is permitted to DM."
+		},
+		"summary_channel": {
+			"type": "string",
+			"pattern": "^C[A-Z0-9]+$",
+			"description": "Optional: channel ID where the Slack bridge (bridges/slack/bridge.py) posts the daily HIGH/MEDIUM/LOW summary. Must also appear in allowed_channels."
+		},
+		"workspace_slug": {
+			"type": "string",
+			"description": "Optional: Linear workspace slug used by the Slack bridge to build clickable <https://linear.app/{slug}/issue/{id}|{id}> URLs. Omit to fall back to bare issue IDs."
+		},
+		"fallback_dm_user": {
+			"type": "string",
+			"description": "Optional: user key (from users.json) the Slack bridge DMs when an issue has no assignee or the assignee isn't in allowed_dm_users. Defaults to the first entry of allowed_dm_users."
 		}
 	},
 	"required": ["channels", "allowed_channels", "allowed_dm_users"]
