@@ -83,4 +83,24 @@ describe("parseActionsJson", () => {
 	it("throws when actions is missing", () => {
 		expect(() => parseActionsJson(JSON.stringify({ summary: {} }))).toThrow(/missing/);
 	});
+
+	it("recovers when the model prepends a prose preamble", () => {
+		const raw =
+			'I\'ll analyze the snapshot now.\n\n{"actions":[{"issue_id":"ENG-1","tier":"LOW","rule":"L1","rationale":"stale"}],"summary":{}}';
+		expect(parseActionsJson(raw).actions).toHaveLength(1);
+	});
+
+	it("recovers when the model appends a trailing sentence", () => {
+		const raw =
+			'{"actions":[{"issue_id":"ENG-1","tier":"HIGH","rule":"H1","rationale":"ok"}],"summary":{}}\n\nLet me know if you need clarification.';
+		expect(parseActionsJson(raw).actions).toHaveLength(1);
+	});
+
+	it("handles braces inside string values without false-closing the object", () => {
+		const raw =
+			'Prelude.\n{"actions":[{"issue_id":"ENG-1","tier":"LOW","rule":"L1","rationale":"contains } closing brace in text"}],"summary":{}}';
+		const parsed = parseActionsJson(raw);
+		expect(parsed.actions).toHaveLength(1);
+		expect(parsed.actions[0].rationale).toContain("} closing brace");
+	});
 });

@@ -86,13 +86,59 @@ function stripFences(text: string): string {
 	return fenced ? fenced[1].trim() : text.trim();
 }
 
+/**
+ * Extract the first complete top-level `{...}` object from text. Used as a
+ * fallback when the model prepends prose ("I'll analyze...") or appends a
+ * trailing sentence despite the prompt forbidding it. Returns null if no
+ * brace-balanced object can be found.
+ */
+function extractFirstJsonObject(text: string): string | null {
+	const start = text.indexOf("{");
+	if (start < 0) return null;
+	let depth = 0;
+	let inString = false;
+	let escape = false;
+	for (let i = start; i < text.length; i++) {
+		const ch = text[i];
+		if (escape) {
+			escape = false;
+			continue;
+		}
+		if (ch === "\\") {
+			escape = true;
+			continue;
+		}
+		if (ch === '"') {
+			inString = !inString;
+			continue;
+		}
+		if (inString) continue;
+		if (ch === "{") depth++;
+		else if (ch === "}") {
+			depth--;
+			if (depth === 0) return text.slice(start, i + 1);
+		}
+	}
+	return null;
+}
+
 export function parseActionsJson(raw: string): CuratorResponse {
 	const trimmed = stripFences(raw);
 	let parsed: unknown;
 	try {
 		parsed = JSON.parse(trimmed);
-	} catch (err) {
-		throw new Error(`Curator LLM output is not valid JSON: ${(err as Error).message}`);
+	} catch (firstErr) {
+		// Fallback: model added prose around the JSON. Extract the first balanced
+		// {...} block and try again.
+		const extracted = extractFirstJsonObject(trimmed);
+		if (extracted === null) {
+			throw new Error(`Curator LLM output is not valid JSON: ${(firstErr as Error).message}`);
+		}
+		try {
+			parsed = JSON.parse(extracted);
+		} catch (secondErr) {
+			throw new Error(`Curator LLM output is not valid JSON: ${(secondErr as Error).message}`);
+		}
 	}
 	if (typeof parsed !== "object" || parsed === null) {
 		throw new Error("Curator LLM output must be a JSON object.");
