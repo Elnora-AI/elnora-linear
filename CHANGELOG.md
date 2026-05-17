@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.1.1](https://github.com/Elnora-AI/elnora-linear/compare/v2.1.0...v2.1.1) (2026-05-17)
+
+
+### Bug Fixes
+
+* make archive/restore round-trip work + tighten customer-need + batch help text ([#36](https://github.com/Elnora-AI/elnora-linear/issues/36)) ([c620eb7](https://github.com/Elnora-AI/elnora-linear/commit/c620eb7a633175db221fc9f4a7d92cfb22604cac))
+* **sync:** preserve manually-curated fields across resync ([#35](https://github.com/Elnora-AI/elnora-linear/issues/35)) ([591cc50](https://github.com/Elnora-AI/elnora-linear/commit/591cc5023e06e99e946dbca51656cd02df998007))
+
 ## [2.1.0](https://github.com/Elnora-AI/elnora-linear/compare/v2.0.0...v2.1.0) (2026-05-17)
 
 
