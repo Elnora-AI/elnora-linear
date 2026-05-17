@@ -20,6 +20,7 @@ import { setupCommentsCommand } from "./commands/comments.js";
 import { setupCompletionCommand } from "./commands/completion.js";
 import { setupContextCommand } from "./commands/context.js";
 import { runCurator } from "./commands/curator.js";
+import { setupCuratorSlackBridgeCommand } from "./commands/curator-slack-bridge.js";
 import { setupCustomerNeedsCommand } from "./commands/customer-needs.js";
 import { setupCustomersCommand } from "./commands/customers.js";
 import { setupCyclesCommand } from "./commands/cycles.js";
@@ -197,6 +198,7 @@ program
 		await runCurator(opts);
 	});
 
+setupCuratorSlackBridgeCommand(program);
 setupUsersCommand(program);
 setupStatesCommand(program);
 setupCyclesCommand(program);

@@ -6,5 +6,7 @@
 		{ "id": "C000000GEN", "name": "general" }
 	],
 	"allowed_channels": ["C000000ENG"],
-	"allowed_dm_users": ["alice", "bob"]
+	"allowed_dm_users": ["alice", "bob"],
+	"workspace_slug": "example-workspace",
+	"fallback_dm_user": "alice"
 }
