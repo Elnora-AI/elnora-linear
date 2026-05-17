@@ -209,18 +209,33 @@ mentioned.
 
 ### 4b. `slack.json` — channels for the `slack_messages` signal
 
-Only needed if the user wants the curator to read Slack messages. (Curator
-DMs back to a user are config-scaffolded but not wired up yet — don't
-promise them.) Ask:
+Two Slack features live under one app + one bot token: this step (the
+**reader**, which lets the curator see channel messages) and Step 4e
+below (the **bridge**, which DMs assignees with MEDIUM-tier questions).
+Ask BOTH questions now, before any Slack work, so you can collect every
+required scope in one app-install pass:
 
-> Do you want the curator to read Slack channel messages? If yes, I'll
-> walk you through creating a Slack app, then collect the bot token and
-> the channel IDs to watch.
+> Slack ties into the curator two ways. (1) **Reader**: the curator can
+> watch specific channels and feed those messages into its signal mix.
+> (2) **Bridge**: when the curator has a MEDIUM-tier question (e.g.
+> "this issue looks done — close it?"), the bridge DMs the issue's
+> assignee and applies their reply. Both use one Slack app and one bot
+> token. Do you want the reader, the bridge, both, or neither?
 
-If no, skip this file (leave it as placeholder).
+Record the answer (`reader-only`, `bridge-only`, `both`, or `neither`)
+and reuse it in Step 4e — do not ask again there.
 
-If yes, walk the user through these steps in order — confirm each one
-before moving on:
+- **Neither** — skip the rest of this step AND Step 4e. Move to 4c.
+- **Reader-only** — walk all 8 substeps below.
+- **Bridge-only** — walk substeps 1–4 only (create app, add bridge
+  scopes from the matrix, install, verify token). Then skip to Step 4e
+  — substeps 5–8 are channel/reader-specific, and Step 4e persists the
+  token under the bridge's `SLACK_BOT_TOKEN` env var.
+- **Both** — walk all 8 substeps below. The token gets persisted as
+  `SLACK_TOKEN` here (reader); Step 4e adds a second line for
+  `SLACK_BOT_TOKEN` (bridge) pointing at the same `xoxb-…` value.
+
+Walk substeps in order — confirm each before moving on:
 
 1. **Create the app.** Tell the user to open
    https://api.slack.com/apps → **Create New App** → **From scratch**,
@@ -228,9 +243,15 @@ before moving on:
    workspace. Wait for them to confirm.
 
 2. **Add scopes.** Sidebar → **OAuth & Permissions** → scroll to
-   **Bot Token Scopes** → add `channels:history` (public channels) and
-   `groups:history` (private channels). Skip the latter if they only
-   need public channels.
+   **Bot Token Scopes** → add the scopes from the matrix below based on
+   the decision you recorded above. Adding extra scopes later forces a
+   Slack app reinstall, so add everything you'll need now.
+
+   | Decision | Reader scopes | Bridge scopes |
+   |---|---|---|
+   | `reader-only` | `channels:history` (public), `groups:history` (private — only if needed) | — |
+   | `bridge-only` | — | `chat:write`, `im:write`, `im:history` |
+   | `both` | `channels:history`, `groups:history` (if needed) | `chat:write`, `im:write`, `im:history` |
 
 3. **Install the app.** Same page, scroll up → **Install to Workspace**
    → approve. The page now shows a **Bot User OAuth Token** starting
@@ -292,8 +313,9 @@ before moving on:
    }
    ```
 
-   Leave `allowed_dm_users` as `[]` — the DM-back path isn't
-   implemented yet, so populating it does nothing.
+   Leave `allowed_dm_users` as `[]` for now — Step 4e populates it if
+   the user opts into the Slack bridge. If they say no to the bridge,
+   it stays empty (the curator reader doesn't use it).
 
 Gate: re-run `elnora-linear sync verify --output json`. `slack` should
 now report `status: "populated"`.
@@ -387,6 +409,160 @@ elnora-linear sync verify --output json
 Gate: every file the user populated must now report `status: "populated"`.
 Files the user skipped remain `"placeholder"` — that's fine.
 
+### 4e. Slack bridge — DM assignees with MEDIUM-tier questions
+
+Skip this whole step if the user answered `reader-only` or `neither` in
+Step 4b. Otherwise (decision was `bridge-only` or `both`), the Slack app
+and scopes are already in place from Step 4b — this step adds Python
+deps, persists the token under the bridge's env-var name, enriches
+`users.json`, and writes the bridge fields on `slack.json`.
+
+Background: the curator stages MEDIUM-tier questions in
+`curator-state.json` but does not post to Slack. `bridges/slack/bridge.py`
+is the consumer that DMs assignees and applies their replies back to
+Linear. It ships with the npm package under `bridges/slack/` — full
+operator notes in `bridges/slack/README.md`.
+
+Do these in order. Confirm each before the next.
+
+1. **Python deps.** The bridge is a single Python file with two
+   dependencies. Verify Python first, then install:
+
+   ```sh
+   python3 --version   # 3.9+
+   pip install slack-sdk anthropic
+   ```
+
+   Gate: `python3 --version` exits 0 with a `3.9.x` or higher version
+   string. `pip install` exits 0. If `pip` complains about an externally-
+   managed environment (PEP 668), tell the user verbatim:
+
+   > Your Python is PEP 668 managed. Two options:
+   > (a) `pipx install slack-sdk && pipx inject slack-sdk anthropic`
+   > (b) virtualenv: `python3 -m venv ~/.local/share/elnora-bridge && ~/.local/share/elnora-bridge/bin/pip install slack-sdk anthropic`
+   > Pick one. If you go with (b), tell me — the schedule step needs to
+   > know your venv's python path.
+
+   Wait for them to pick one; do not silently override with
+   `--break-system-packages`. Remember which path they chose — substeps
+   6 (dry-run) and 7 (scheduling) need the venv python path if they
+   picked (b).
+
+2. **Persist the bot token** as `SLACK_BOT_TOKEN` (the bridge reads this
+   name specifically; the curator reader uses `SLACK_TOKEN`. Set both to
+   the same `xoxb-…` value if the decision was `both`):
+
+   ```sh
+   export SLACK_BOT_TOKEN="<xoxb-…>"
+   umask 077
+   printf 'SLACK_BOT_TOKEN=%s\n' "$SLACK_BOT_TOKEN" >> ~/.config/elnora-linear/.env
+   chmod 600 ~/.config/elnora-linear/.env
+   ```
+
+   Re-verify the mode is still `600`. If the decision was `both`,
+   `SLACK_TOKEN` should already be in the file from Step 4b substep 7 —
+   leave it; do not deduplicate.
+
+3. **Enrich `users.json` with `slack_user_id`.** The bridge maps Linear
+   assignees → Slack users via this field. Without it, DMs fall back to
+   `slack.json.fallback_dm_user` (or no-op if that's unset). For each
+   user the bridge should DM:
+
+   - In Slack, click the user's name → **View full profile** → click the
+     three-dot menu → **Copy member ID**. Format: `U0123ABCDEF`.
+   - In `~/.config/elnora-linear/users.json`, find the entry whose
+     `name` matches the user's Linear display name (already populated by
+     `sync all`) and add `"slack_user_id": "U0123ABCDEF"`. The `key`
+     field is auto-generated by `sync users` — only override it if the
+     auto-derived value collides with another user or doesn't match the
+     short alias the user wants in `allowed_dm_users`.
+
+   `sync users` preserves `slack_user_id` (and any user-overridden
+   `key`) across future re-syncs — the merge keys off `linear_user_id`.
+   Don't invent `slack_user_id` values; if a Linear user has no Slack
+   equivalent, leave them out and the bridge will skip DMs to them.
+
+   Reference shape: `references/users.example.json`.
+
+4. **Write `slack.json` bridge fields.** If the decision was `both`,
+   Step 4b already wrote `slack.json` with the reader fields — open it
+   and add the bridge fields. If the decision was `bridge-only`, create
+   it from `references/slack.example.json`:
+
+   ```sh
+   cp "$(npm root -g)/@elnora-ai/linear/references/slack.example.json" \
+      ~/.config/elnora-linear/slack.json
+   ```
+
+   Final shape — drop the reader fields if `bridge-only`, keep them
+   alongside if `both`:
+
+   ```jsonc
+   {
+     // reader fields (only if decision was `both`):
+     "channels":         [/* from Step 4b */],
+     "allowed_channels": [/* from Step 4b */],
+
+     // bridge fields (always for this step):
+     "allowed_dm_users": ["alice", "bob"],     // user keys from users.json — gates outbound DMs
+     "workspace_slug":   "your-workspace",     // builds linear.app/{slug}/issue URLs in DMs
+     "fallback_dm_user": "alice"               // DM target when an issue has no assignee
+   }
+   ```
+
+   Ask the user for their workspace slug (the subdomain in
+   `linear.app/<slug>/`) and which user keys to put in `allowed_dm_users`
+   — that list is the bridge's outbound safety gate. Every key here MUST
+   match a `key` field in `users.json` (otherwise the bridge silently
+   refuses to DM that user). Cross-check before declaring done. If
+   `workspace_slug` is unset, DMs show bare issue IDs instead of
+   clickable links; if `fallback_dm_user` is unset, the first entry of
+   `allowed_dm_users` is used.
+
+5. **`ANTHROPIC_API_KEY` reminder.** The bridge uses Claude to interpret
+   user replies in `resolve` mode. Step 4-pre already collected it for
+   the curator; the bridge reads the same env var from the same `.env`
+   file. If the user refused to set it in Step 4-pre, flag that the
+   bridge will degrade to a keyword-only fallback (worse but functional).
+
+6. **Dry-run smoke test.** Confirm the bridge can load its config
+   before scheduling it:
+
+   ```sh
+   python3 "$(npm root -g)/@elnora-ai/linear/bridges/slack/bridge.py" tick --dry-run --verbose
+   ```
+
+   (If the user picked virtualenv in substep 1, swap `python3` for the
+   venv's interpreter, e.g. `~/.local/share/elnora-bridge/bin/python`.)
+
+   Gate: exit 0 and the log confirms it loaded `slack.json` + `users.json`
+   (and reports that `SLACK_BOT_TOKEN` + `ANTHROPIC_API_KEY` are set).
+   The bridge's upstream-state file (`curator-state.json`) does NOT need
+   to exist yet — the bridge treats a missing state as "no pending
+   questions" and the dry-run exits cleanly. Step 5's `curator-run` will
+   create it. Failure modes:
+   - Exit 2 (`Missing required config`): re-check `SLACK_BOT_TOKEN` is on
+     its own line in `~/.config/elnora-linear/.env` and the file mode is
+     `600`.
+   - Exit 4 (`Upstream state lock held`): another `curator-run` is
+     mid-flight. Wait for it to finish and retry.
+   - `ModuleNotFoundError: slack_sdk` or `anthropic`: the deps landed in
+     a different Python than `python3` resolves to — re-run with the
+     venv/pipx interpreter (see substep 1).
+
+7. **Schedule it.** Don't run the bridge on demand — schedule it after
+   each `curator-run` so new MEDIUM questions get DM'd promptly. Point
+   the user at the **Slack bridge** section of `docs/scheduling.md` for
+   launchd / systemd / cron templates. The shipped
+   `bridges/slack/launchd.example.plist` is the macOS starting point.
+   If the user picked the virtualenv path in substep 1, the example
+   plist's `/usr/bin/python3` won't see the bridge's deps — they must
+   swap that string for the venv's python interpreter before bootstrap.
+
+Gate: re-run `elnora-linear sync verify --output json`. `slack` should
+still report `status: "populated"`. There's no separate verifier for the
+bridge — the `--dry-run` in substep 6 is the validation.
+
 ## Step 5 — Smoke test
 
 Run the most-used CLI verb to confirm the full stack works end-to-end:
@@ -447,7 +623,10 @@ Tell the user, in this order:
      dispatch table in [`AGENTS.md`](AGENTS.md).
 4. **If they opted into the curator** — mention `elnora-linear curator-run`
    is manual today; point them at `docs/scheduling.md` for launchd/systemd/
-   Task Scheduler templates if they want it on a schedule.
+   Task Scheduler templates if they want it on a schedule. If they also
+   opted into the Slack bridge (Step 4e), point them at the **Slack
+   bridge** section of the same doc — the bridge must be scheduled
+   AFTER the curator on each tick or MEDIUM questions stay undelivered.
 5. **Any warnings from Step 2** — if the API key was scoped to a subset of
    workspaces, repeat that here so they don't wonder later why some teams
    are missing.
@@ -474,9 +653,19 @@ finish it before reporting done.
 8. If the user populated `repos.json`: `gh auth status` exits 0 in the
    same shell that will run the curator, AND every entry with a
    `local_path` points at a real `.git` working tree.
-9. You have NOT written anything to `~/.config/elnora-linear/` that the user
-   didn't explicitly ask for. The curator config files for opted-out
-   features remain placeholder.
+9. If the Step 4b decision was `bridge-only` or `both`: the bridge's
+   Python deps are importable from the interpreter the user will
+   schedule (`python3 -c 'import slack_sdk, anthropic'` for system
+   Python, or the same line via the venv/pipx python they picked in
+   Step 4e.1); `SLACK_BOT_TOKEN` is present in
+   `~/.config/elnora-linear/.env` (mode still `600`); `slack.json` has
+   `workspace_slug` set and a non-empty `allowed_dm_users`; every entry
+   in `allowed_dm_users` matches a `key` in `users.json` whose
+   `slack_user_id` is populated; the bridge's `tick --dry-run --verbose`
+   smoke test exited 0.
+10. You have NOT written anything to `~/.config/elnora-linear/` that the user
+    didn't explicitly ask for. The curator config files for opted-out
+    features remain placeholder.
 
 When all applicable items pass, print `LINEAR_WORKSPACE_READY` on its own
 line so the user (and any wrapping harness) can grep for it.

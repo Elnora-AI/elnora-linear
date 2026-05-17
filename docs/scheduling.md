@@ -100,3 +100,74 @@ elnora-linear curator-run --dry-run --output text   # preview without writes
 elnora-linear curator-run                            # actually apply HIGH actions
 elnora-linear curator-run --source github-prs        # restrict to one signal source
 ```
+
+## Slack bridge
+
+The curator stages MEDIUM-tier questions in `curator-state.json` but does not post to Slack — `bridges/slack/bridge.py` is the consumer that DMs assignees and applies their replies back to Linear. See `bridges/slack/README.md` for setup; this section covers scheduling it alongside the curator.
+
+**The bridge must run after the curator on every tick.** A curator run that stages new MEDIUM questions is wasted work until the bridge picks them up. Schedule both, with the bridge 2–5 minutes behind the curator, and add one or two later ticks the same day to poll for replies.
+
+### macOS — launchd
+
+A ready-to-edit template ships at `bridges/slack/launchd.example.plist` (path: `$(npm root -g)/@elnora-ai/linear/bridges/slack/launchd.example.plist`). Substitute every `{{REPO_ROOT}}` placeholder, drop into `~/Library/LaunchAgents/`, and bootstrap:
+
+> **Python interpreter:** the template uses `/usr/bin/python3`. That's correct only if you installed `slack-sdk` and `anthropic` against the system Python. If you installed them into a virtualenv (a common PEP 668 workaround), swap that string for the venv's interpreter, e.g. `~/.local/share/elnora-bridge/bin/python` — otherwise launchd will fire the bridge and it'll exit with `ModuleNotFoundError: slack_sdk`. `pipx`-installed deps generally need no plist edit because `pipx` exposes its environment to system Python.
+
+```sh
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.example.linear-curator-bridge.plist
+```
+
+The template fires `tick` mode at 09:38, 11:30, and 14:30 on weekdays — 8 minutes after the curator example above, then twice more for replies. Adjust `StartCalendarInterval` to match your curator cadence. Note: launchd does not source `.envrc` / `.env` / shell rc files; either set `SLACK_BOT_TOKEN` and `ANTHROPIC_API_KEY` in the plist's `EnvironmentVariables` dict (mind plist file perms) or wrap the python call in a script that loads your secret store before `exec`-ing `bridge.py`.
+
+### Linux — systemd timer
+
+Reuse the curator's pattern. `elnora-linear-bridge.service`:
+
+```ini
+[Unit]
+Description=Linear curator Slack bridge — DM assignees with MEDIUM-tier questions
+After=elnora-linear-curator.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -u %h/.local/lib/elnora-linear/bridges/slack/bridge.py tick
+EnvironmentFile=%h/.config/elnora-linear/.env
+```
+
+`elnora-linear-bridge.timer`:
+
+```ini
+[Unit]
+Description=Run the Linear Slack bridge after the curator + twice more for replies
+
+[Timer]
+OnCalendar=Mon..Fri 09:35
+OnCalendar=Mon..Fri 11:30
+OnCalendar=Mon..Fri 14:30
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+Adjust the `bridge.py` path to wherever you cloned or installed the package (`$(npm root -g)/@elnora-ai/linear/bridges/slack/bridge.py` for a global npm install). Enable: `systemctl --user enable --now elnora-linear-bridge.timer`.
+
+### Linux — cron
+
+```cron
+30 9 * * 1-5  elnora-linear curator-run --output text
+35 9 * * 1-5  python3 /path/to/bridges/slack/bridge.py tick
+30 11 * * 1-5 python3 /path/to/bridges/slack/bridge.py tick
+30 14 * * 1-5 python3 /path/to/bridges/slack/bridge.py tick
+```
+
+### Manual run
+
+```sh
+python3 bridges/slack/bridge.py tick --dry-run --verbose   # smoke test, no posts
+python3 bridges/slack/bridge.py tick                        # post new MEDIUM questions + poll replies
+python3 bridges/slack/bridge.py post-pending                # only post; skip reply polling
+python3 bridges/slack/bridge.py resolve                     # only poll replies
+```
+
+The bridge takes the same exclusive file lock as the curator on `curator-state.json`, so concurrent runs cannot race. Exit code 4 means the curator is still running — wait and retry.
