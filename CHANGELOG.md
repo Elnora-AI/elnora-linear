@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.1.0](https://github.com/Elnora-AI/elnora-linear/compare/v2.0.0...v2.1.0) (2026-05-17)
+
+
+### Features
+
+* 'elnora-linear curator-slack-bridge' subcommand + ship bridges/ in tarball ([#34](https://github.com/Elnora-AI/elnora-linear/issues/34)) ([97ceb2e](https://github.com/Elnora-AI/elnora-linear/commit/97ceb2e15338787d0d26c83be5d23ab1482979ed))
+* **bridges:** Slack bridge for the curator ([#33](https://github.com/Elnora-AI/elnora-linear/issues/33)) ([8fa9265](https://github.com/Elnora-AI/elnora-linear/commit/8fa92655f06096aee3ab9f41624ac3b1ab52d20a))
+
+
+### Bug Fixes
+
+* **curator:** robust LLM JSON parsing + bigger max_tokens ([#31](https://github.com/Elnora-AI/elnora-linear/issues/31)) ([c43db54](https://github.com/Elnora-AI/elnora-linear/commit/c43db548ca1614c64e92836ea1c862bb9e7870ce))
+
 ## [2.0.0](https://github.com/Elnora-AI/elnora-linear/compare/v1.1.0...v2.0.0) (2026-05-16)
 
 
