@@ -53,8 +53,13 @@ Soft-delete by default. Destructive ops (`bulk` apply, permanent delete) require
 
 The Claude Code plugin (`linear-workspace`) provides native slash commands and dispatched subagents — richer than CLI shelling because Claude has primitives other harnesses lack (Skill router, parallel subagents, `argument-hint`).
 
+Run these as **two separate slash commands** (paste the first, hit enter, wait for it to finish, then paste the second):
+
 ```
 /plugin marketplace add Elnora-AI/elnora-linear
+```
+
+```
 /plugin install linear-workspace@elnora-linear
 ```
 
