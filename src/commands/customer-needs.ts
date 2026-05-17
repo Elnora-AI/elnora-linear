@@ -13,7 +13,7 @@ import {
 	CliError,
 	findIssueByIdentifier,
 	parseLimit,
-	parsePriority,
+	parseNeedPriority,
 	requireNonEmptyUpdate,
 	requireYes,
 	resolveProject,
@@ -130,7 +130,10 @@ export function setupCustomerNeedsCommand(program: Command): void {
 		.option("--customer-external-id <id>", "Customer external ID (alternative to --customer)")
 		.option("--issue <id>", "Link to issue (ENG-123 or UUID)")
 		.option("--project <name>", "Link to project (name or UUID)")
-		.option("--priority <0-4>", "Priority")
+		.option(
+			"--priority <0-1>",
+			"Importance: 0 = Not important, 1 = Important (CustomerNeed priority, not Issue priority)",
+		)
 		.option("--attachment <id>", "Existing attachment UUID to associate as the source")
 		.option("--attachment-url <url>", "URL to create an attachment from")
 		.action(
@@ -157,7 +160,7 @@ export function setupCustomerNeedsCommand(program: Command): void {
 					const p = await resolveProject(client, opts.project);
 					input.projectId = p.id;
 				}
-				if (opts.priority) input.priority = parsePriority(opts.priority);
+				if (opts.priority) input.priority = parseNeedPriority(opts.priority);
 				if (opts.attachment) input.attachmentId = opts.attachment;
 				if (opts.attachmentUrl) input.attachmentUrl = opts.attachmentUrl;
 				const payload = await client.createCustomerNeed(input);
@@ -193,13 +196,13 @@ export function setupCustomerNeedsCommand(program: Command): void {
 		.option("--customer <idOrName>", "Move to a different customer")
 		.option("--issue <id>", "Move to a different issue (ENG-123 or UUID)")
 		.option("--project <name>", "Move to a different project")
-		.option("--priority <0-4>", "New priority")
+		.option("--priority <0-1>", "Importance: 0 = Not important, 1 = Important")
 		.action(
 			handleAsyncCommand(async (id: string, opts: Record<string, string>) => {
 				const client = await getClient();
 				const update: Partial<CustomerNeedUpdateInput> = {};
 				if (opts.body) update.body = opts.body;
-				if (opts.priority) update.priority = parsePriority(opts.priority);
+				if (opts.priority) update.priority = parseNeedPriority(opts.priority);
 				if (opts.customer) {
 					const c = await resolveCustomer(client, opts.customer);
 					update.customerId = c.id;

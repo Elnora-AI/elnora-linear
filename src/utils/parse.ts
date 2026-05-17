@@ -52,6 +52,23 @@ export function parsePriority(value: string | undefined): number | undefined {
 }
 
 /**
+ * Parse and validate a customer-need --priority option. CustomerNeed priority
+ * is a 0/1 importance flag, not the Issue priority enum: `0 = Not important`,
+ * `1 = Important`. Routing this through parsePriority would silently let
+ * 2/3/4 through to the server, which then rejects them — confusing.
+ */
+export function parseNeedPriority(value: string | undefined): number | undefined {
+	if (!value) return undefined;
+	const n = parseInt(value, 10);
+	if (Number.isNaN(n) || (n !== 0 && n !== 1)) {
+		throw new ValidationError(
+			`Invalid --priority value: "${value}". Customer needs only accept 0 (Not important) or 1 (Important).`,
+		);
+	}
+	return n;
+}
+
+/**
  * Parse and validate a date option (YYYY-MM-DD). Returns the validated string
  * or undefined if not provided.
  */

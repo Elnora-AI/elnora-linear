@@ -99,10 +99,14 @@ export function setupInitiativesCommand(program: Command): void {
 					requireYes(opts, `permanently delete initiative ${nameOrId}`);
 				}
 				const client = await getClient();
-				const resolved = await resolveInitiative(client, nameOrId);
+				// Archive should be idempotent — pass includeArchived so we can detect
+				// "already archived" and no-op instead of throwing Entity not found.
+				const resolved = await resolveInitiative(client, nameOrId, { includeArchived: !opts.permanent });
 				if (opts.permanent) {
 					const payload = await client.deleteInitiative(resolved.id);
 					outputSuccess({ deleted: payload.success, permanent: true });
+				} else if (resolved.archivedAt) {
+					outputSuccess({ archived: true, alreadyArchived: true });
 				} else {
 					const payload = await client.archiveInitiative(resolved.id);
 					outputSuccess({ archived: payload.success });
@@ -116,7 +120,7 @@ export function setupInitiativesCommand(program: Command): void {
 		.action(
 			handleAsyncCommand(async (nameOrId: string) => {
 				const client = await getClient();
-				const resolved = await resolveInitiative(client, nameOrId);
+				const resolved = await resolveInitiative(client, nameOrId, { includeArchived: true });
 				const payload = await client.unarchiveInitiative(resolved.id);
 				outputSuccess({ restored: payload.success });
 			}),

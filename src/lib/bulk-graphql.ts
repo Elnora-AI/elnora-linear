@@ -159,6 +159,7 @@ export async function gqlRequest<T = unknown>(
 }
 
 export interface BulkIssueNode {
+	id: string;
 	identifier: string;
 	title: string;
 	description: string | null;
@@ -174,9 +175,11 @@ export interface BulkIssueNode {
 	url: string;
 	updatedAt: string;
 	createdAt: string;
+	archivedAt: string | null;
 }
 
 const BULK_LIST_FIELDS_DEFAULT = `
+  id
   identifier
   title
   priority
@@ -190,6 +193,7 @@ const BULK_LIST_FIELDS_DEFAULT = `
 `;
 
 const BULK_LIST_FIELDS_EXTENDED = `
+  id
   identifier
   title
   description
@@ -205,6 +209,7 @@ const BULK_LIST_FIELDS_EXTENDED = `
   url
   updatedAt
   createdAt
+  archivedAt
 `;
 
 function bulkListFieldsFor(opts: { includeDescription?: boolean; includeRelations?: boolean }): string {
@@ -300,6 +305,7 @@ export async function bulkSearchIssues(
 
 export function formatBulkIssue(n: BulkIssueNode, withFull = false): Record<string, unknown> {
 	const out: Record<string, unknown> = {
+		id: n.id,
 		identifier: n.identifier,
 		title: n.title,
 		state: n.state?.name ?? null,
@@ -317,6 +323,7 @@ export function formatBulkIssue(n: BulkIssueNode, withFull = false): Record<stri
 		out.relations = n.relations.nodes.map((r) => ({ type: r.type, with: r.relatedIssue?.identifier ?? null }));
 		out.updatedAt = n.updatedAt;
 		out.createdAt = n.createdAt;
+		out.archivedAt = n.archivedAt ?? null;
 	}
 	return out;
 }

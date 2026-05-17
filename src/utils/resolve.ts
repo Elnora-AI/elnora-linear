@@ -126,18 +126,40 @@ export async function resolveState(
 	return { id: match.id, name: match.name, type: match.type };
 }
 
-/** Resolve an initiative name to its UUID. */
-export async function resolveInitiative(client: LinearClient, nameOrId: string): Promise<{ id: string; name: string }> {
+/**
+ * Resolve an initiative name to its UUID.
+ *
+ * Pass `includeArchived: true` from restore / re-archive paths — the singular
+ * `client.initiative(uuid)` query and the default `initiatives()` connection
+ * both exclude archived rows on the server, so without this option archived
+ * initiatives are unresolvable from the CLI (restore becomes impossible, and
+ * a redundant delete on an already-archived initiative errors instead of
+ * being a no-op).
+ */
+export async function resolveInitiative(
+	client: LinearClient,
+	nameOrId: string,
+	opts: { includeArchived?: boolean } = {},
+): Promise<{ id: string; name: string; archivedAt: Date | null }> {
+	const includeArchived = opts.includeArchived ?? false;
 	if (isUUID(nameOrId)) {
-		const init = await client.initiative(nameOrId);
-		return { id: init.id, name: init.name };
+		// Use the filter-based connection (not the singular initiative(id) query)
+		// so `includeArchived` actually applies — the singular query has no such arg.
+		const connection = await client.initiatives({
+			filter: { id: { eq: nameOrId } },
+			first: 1,
+			includeArchived,
+		});
+		const match = connection.nodes[0];
+		if (!match) throw new NotFoundError("Initiative", nameOrId);
+		return { id: match.id, name: match.name, archivedAt: match.archivedAt ?? null };
 	}
-	const connection = await client.initiatives({ first: 250 });
+	const connection = await client.initiatives({ first: 250, includeArchived });
 	const all = await fetchAllNodes(connection);
 	const lower = nameOrId.toLowerCase();
 	const match = all.find((i) => i.name.toLowerCase() === lower);
 	if (!match) throw new NotFoundError("Initiative", nameOrId);
-	return { id: match.id, name: match.name };
+	return { id: match.id, name: match.name, archivedAt: match.archivedAt ?? null };
 }
 
 /**
@@ -159,13 +181,23 @@ export function parseIssueIdentifier(input: string): string {
  * path returns full Issue objects directly so connection methods (.comments(),
  * .labels(), .relations()) work the same as before.
  */
-export async function findIssueByIdentifier(client: LinearClient, id: string): Promise<Issue> {
+export async function findIssueByIdentifier(
+	client: LinearClient,
+	id: string,
+	opts: { includeArchived?: boolean } = {},
+): Promise<Issue> {
+	const includeArchived = opts.includeArchived ?? false;
+	// The singular issue(id) query has no includeArchived arg, but it returns
+	// archived rows by id anyway. The connection query defaults to
+	// includeArchived: false, so ENG-N lookups silently exclude archived issues
+	// — restore must pass includeArchived: true to find them.
 	if (isUUID(id)) return client.issue(id);
 	const match = id.toUpperCase().match(/^([A-Z]+)-(\d+)$/);
 	if (!match) throw new NotFoundError("Issue", id);
 	const result = await client.issues({
 		filter: { team: { key: { eq: match[1] } }, number: { eq: parseInt(match[2], 10) } },
 		first: 1,
+		includeArchived,
 	});
 	const issue = result.nodes[0];
 	if (issue) return issue;
