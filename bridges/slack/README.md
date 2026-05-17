@@ -19,12 +19,25 @@ MEDIUM tier starts working.
 ## Install
 
 ```sh
-pip install slack-sdk anthropic
+pip install slack-sdk anthropic   # Python 3.9+
 ```
 
 The bridge calls the `elnora-linear` CLI by name (resolved via `PATH`), so make
 sure `npm install -g @elnora-ai/linear` has already run. Override the path with
 `ELNORA_LINEAR_BIN=/custom/path/elnora-linear` if needed.
+
+## Slack app setup (one-time)
+
+1. Go to <https://api.slack.com/apps> → **Create New App** → **From scratch**. Pick a name (e.g. "Linear Curator") and your workspace.
+2. **OAuth & Permissions** → **Bot Token Scopes** → add:
+   - `chat:write` — post messages
+   - `im:write` — open DMs with users
+   - `im:history` — read replies in DMs the bot is part of
+   - `channels:history` — read replies in the summary channel
+3. **Install to Workspace** → copy the **Bot User OAuth Token** (starts with `xoxb-`) and set it as `SLACK_BOT_TOKEN`.
+4. **Invite the bot** to your `summary_channel` from inside Slack:
+   `/invite @your-bot-name`. Without this, the daily summary post fails with `channel_not_found` even with the right scopes.
+5. Each user the bridge will DM must allow DMs from apps in your workspace — this is on by default in most workspaces, but check Slack admin settings if DMs silently 404.
 
 ## Configure
 
@@ -47,6 +60,26 @@ defaults match the upstream CLI: `~/.config/elnora-linear/references/`).
 | `LINEAR_CURATOR_STATE_DIR` | `~/.config/elnora-linear/state` | Where the upstream curator writes its state |
 | `ELNORA_LINEAR_BIN` | `$(which elnora-linear)` | Override the CLI path |
 | `ANTHROPIC_MODEL` | `claude-sonnet-4-6` | Override the model used by the batch resolver |
+
+### What's auto-populated vs manual
+
+`npm install -g @elnora-ai/linear` runs `elnora-linear sync all` as a
+postinstall step, which auto-populates the following reference files from the
+Linear API once `LINEAR_API_KEY` is set:
+
+| File | Auto-populated | Manual fields to add |
+|---|---|---|
+| `teams.json` | Yes | — |
+| `projects.json` | Yes | — |
+| `users.json` | `name` + `email` | `slack_user_id` for each user the bridge should DM, `key` (a short alias) |
+| `workflows.json` | Yes | — |
+| `slack.json` | No | All fields (channel IDs, allowlists, bridge fields) |
+| `repos.json` | No | `local_path` (machine-specific) + GitHub `org`/`name` |
+| `signal-sources.json` | No | Pick which sources to enable + their configs |
+
+The Slack-specific fields all live on `slack.json` so the bridge has no
+separate config file to maintain. See `references/slack.example.json` for a
+populated example.
 
 ### Reference files
 
