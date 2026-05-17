@@ -20,7 +20,11 @@
     "references/*.example.json",
     "templates/",
     ".claude-plugin/",
+    "AGENTS.md",
+    "INSTALL_FOR_AGENTS.md",
     "README.md",
+    "SAFETY.md",
+    "docs/",
     "LICENSE",
     "CHANGELOG.md"
   ],

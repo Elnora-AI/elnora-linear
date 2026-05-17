@@ -37,7 +37,8 @@ Environment
   LINEAR_REFERENCES_DIR    Path to the populated references directory
                            (teams.json, users.json, slack.json,
                            workspace.json). Defaults to
-                           ~/.config/elnora-linear/references.
+                           ~/.config/elnora-linear (matches the CLI's
+                           default — same dir the CLI's `sync` writes to).
   LINEAR_CURATOR_STATE_DIR Path the upstream curator writes its state
                            to. Defaults to ~/.config/elnora-linear/state.
   ELNORA_LINEAR_BIN        Path to the elnora-linear binary. Defaults to
@@ -96,7 +97,10 @@ def _default_refs_dir() -> Path:
     env = os.environ.get("LINEAR_REFERENCES_DIR")
     if env:
         return Path(env)
-    return Path.home() / ".config" / "elnora-linear" / "references"
+    # Matches the CLI's resolveReferencesDir default (src/config/loader.ts:91).
+    # The CLI writes slack.json / users.json directly under ~/.config/elnora-linear/,
+    # not in a references/ subdir.
+    return Path.home() / ".config" / "elnora-linear"
 
 
 def _elnora_linear_bin() -> str:

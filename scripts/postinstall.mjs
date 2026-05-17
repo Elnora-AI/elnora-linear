@@ -92,6 +92,14 @@ export function findApiKey(env = process.env, envFile = ENV_FILE) {
 	return null;
 }
 
+function printAgentPointer() {
+	log(
+		COLORS.dim(
+			"  Agents: see INSTALL_FOR_AGENTS.md in this package for a guided multi-step setup.",
+		),
+	);
+}
+
 function printNoKeyNotice() {
 	log("");
 	log(COLORS.yellow("⚠  elnora-linear: could not personalise your Linear agents."));
@@ -105,6 +113,7 @@ function printNoKeyNotice() {
 	log(`     2. ${COLORS.cyan("export LINEAR_API_KEY=lin_api_...")}`);
 	log(`     3. ${COLORS.cyan("elnora-linear sync all")}`);
 	log("");
+	printAgentPointer();
 	log(COLORS.dim("   (Skip this notice with ELNORA_LINEAR_SKIP_POSTINSTALL=1.)"));
 	log("");
 }
@@ -115,6 +124,7 @@ function printFailureNotice(reason) {
 	log(`   ${reason}`);
 	log("");
 	log(`   You can rerun it any time: ${COLORS.cyan("elnora-linear sync all")}`);
+	printAgentPointer();
 	log("");
 }
 
@@ -122,6 +132,7 @@ function printSuccessNotice() {
 	log("");
 	log(COLORS.green("✓ elnora-linear: reference files populated from your Linear workspace."));
 	log(COLORS.dim("  (teams, projects, users, workflows — refresh any time with `elnora-linear sync all`.)"));
+	printAgentPointer();
 	log("");
 }
 
