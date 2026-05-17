@@ -86,13 +86,59 @@ function stripFences(text: string): string {
 	return fenced ? fenced[1].trim() : text.trim();
 }
 
+/**
+ * Extract the first complete top-level `{...}` object from text. Used as a
+ * fallback when the model prepends prose ("I'll analyze...") or appends a
+ * trailing sentence despite the prompt forbidding it. Returns null if no
+ * brace-balanced object can be found.
+ */
+function extractFirstJsonObject(text: string): string | null {
+	const start = text.indexOf("{");
+	if (start < 0) return null;
+	let depth = 0;
+	let inString = false;
+	let escaped = false;
+	for (let i = start; i < text.length; i++) {
+		const ch = text[i];
+		if (escaped) {
+			escaped = false;
+			continue;
+		}
+		if (ch === "\\") {
+			escaped = true;
+			continue;
+		}
+		if (ch === '"') {
+			inString = !inString;
+			continue;
+		}
+		if (inString) continue;
+		if (ch === "{") depth++;
+		else if (ch === "}") {
+			depth--;
+			if (depth === 0) return text.slice(start, i + 1);
+		}
+	}
+	return null;
+}
+
 export function parseActionsJson(raw: string): CuratorResponse {
 	const trimmed = stripFences(raw);
 	let parsed: unknown;
 	try {
 		parsed = JSON.parse(trimmed);
-	} catch (err) {
-		throw new Error(`Curator LLM output is not valid JSON: ${(err as Error).message}`);
+	} catch (firstErr) {
+		// Fallback: model added prose around the JSON. Extract the first balanced
+		// {...} block and try again.
+		const extracted = extractFirstJsonObject(trimmed);
+		if (extracted === null) {
+			throw new Error(`Curator LLM output is not valid JSON: ${(firstErr as Error).message}`);
+		}
+		try {
+			parsed = JSON.parse(extracted);
+		} catch (secondErr) {
+			throw new Error(`Curator LLM output is not valid JSON: ${(secondErr as Error).message}`);
+		}
 	}
 	if (typeof parsed !== "object" || parsed === null) {
 		throw new Error("Curator LLM output must be a JSON object.");
@@ -122,7 +168,9 @@ export interface CuratorLlmOptions {
 }
 
 const DEFAULT_MODEL = "claude-sonnet-4-6";
-const DEFAULT_MAX_TOKENS = 4096;
+// Curator JSON response easily reaches 8-12k tokens for workspaces with
+// hundreds of open issues; 4096 truncates mid-string at that scale.
+const DEFAULT_MAX_TOKENS = 16384;
 
 /**
  * Run the curator LLM call. Returns the parsed response. Throws on missing
@@ -139,10 +187,16 @@ export async function callCuratorLlm(snapshot: string, opts: CuratorLlmOptions =
 
 	const Anthropic = (await import("@anthropic-ai/sdk")).default;
 	const client = new Anthropic({ apiKey });
+	// Append a hard JSON-only directive to the system prompt. Models that
+	// support assistant-message prefill could enforce this structurally; for
+	// models that don't (e.g. claude-sonnet-4-6), an explicit "first character
+	// must be `{`" instruction combined with the brace-balanced fallback in
+	// parseActionsJson keeps the success rate high.
+	const enforcedSystem = `${system}\n\n---\n\nFINAL OUTPUT RULE: Your response MUST be a single JSON object and nothing else. The FIRST CHARACTER of your response MUST be the literal "{" and the LAST CHARACTER MUST be the literal "}". Do not include any preamble such as "Analyzing the snapshot…" or any trailing sentence. Do not wrap the JSON in markdown code fences. Do not narrate your reasoning — emit only the object.`;
 	const res = await client.messages.create({
 		model,
 		max_tokens: maxTokens,
-		system,
+		system: enforcedSystem,
 		messages: [{ role: "user", content: snapshot }],
 	});
 
