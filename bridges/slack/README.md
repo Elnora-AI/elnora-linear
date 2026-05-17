@@ -8,13 +8,23 @@ intentionally leaves chat I/O to a downstream consumer of the state file.
 `bridges/slack/bridge.py` is that consumer. It:
 
 - Posts each unposted MEDIUM question as a DM to the issue's assignee
-- Posts a daily summary to a configured Slack channel
 - Polls thread replies, batch-interprets them via Anthropic, and applies state
   changes back to Linear via the `elnora-linear` CLI
+- Asks a one-line clarifying question in-thread when the user's reply was
+  ambiguous
+
+The bridge is intentionally silent the rest of the time — no daily summary,
+no per-action confirmation DMs, no timeout pings. Work that can be done
+automatically already auto-applies upstream (HIGH tier), and resulting state
+changes are visible directly in Linear.
 
 It's a single Python file with two dependencies (`slack-sdk`, `anthropic`).
 Drop it in next to your CLI, schedule it after `curator-run`, and the curator's
 MEDIUM tier starts working.
+
+> **Not shipped via the npm tarball.** `bridges/` is excluded from
+> `package.json#files`. Either `git clone` this repo or download
+> `bridges/slack/bridge.py` directly next to where you run the CLI.
 
 ## Install
 
@@ -33,11 +43,8 @@ sure `npm install -g @elnora-ai/linear` has already run. Override the path with
    - `chat:write` — post messages
    - `im:write` — open DMs with users
    - `im:history` — read replies in DMs the bot is part of
-   - `channels:history` — read replies in the summary channel
 3. **Install to Workspace** → copy the **Bot User OAuth Token** (starts with `xoxb-`) and set it as `SLACK_BOT_TOKEN`.
-4. **Invite the bot** to your `summary_channel` from inside Slack:
-   `/invite @your-bot-name`. Without this, the daily summary post fails with `channel_not_found` even with the right scopes.
-5. Each user the bridge will DM must allow DMs from apps in your workspace — this is on by default in most workspaces, but check Slack admin settings if DMs silently 404.
+4. Each user the bridge will DM must allow DMs from apps in your workspace — this is on by default in most workspaces, but check Slack admin settings if DMs silently 404.
 
 ## Configure
 
@@ -49,7 +56,7 @@ defaults match the upstream CLI: `~/.config/elnora-linear/references/`).
 
 | Variable | Purpose |
 |---|---|
-| `SLACK_BOT_TOKEN` | Bot token with `chat:write`, `im:write`, `im:history`, `channels:history` scopes |
+| `SLACK_BOT_TOKEN` | Bot token with `chat:write`, `im:write`, `im:history` scopes. Same token you can also use as `SLACK_TOKEN` for the curator's `slack_messages` signal source — just set both env vars to the same value. |
 | `ANTHROPIC_API_KEY` | Reply interpretation in `resolve` mode (the bridge degrades to a keyword-only fallback if missing) |
 
 ### Optional env vars
@@ -84,7 +91,7 @@ populated example.
 ### Reference files
 
 **`slack.json`** — already a standard upstream reference file. The bridge adds
-three optional fields on top of the existing curator allowlists:
+two optional fields on top of the existing curator allowlists:
 
 ```jsonc
 {
@@ -93,14 +100,12 @@ three optional fields on top of the existing curator allowlists:
   "allowed_dm_users": [/* … existing curator config … */],
 
   // ↓ optional fields for the Slack bridge
-  "summary_channel":  "C0123456789",        // daily summary destination
   "workspace_slug":   "your-workspace",      // builds linear.app/{slug}/issue URLs
   "fallback_dm_user": "alice"                // DM target when an issue has no assignee
 }
 ```
 
-If `summary_channel` is unset, the daily summary is skipped silently. If
-`workspace_slug` is unset, posts show bare issue IDs instead of clickable
+If `workspace_slug` is unset, DMs show bare issue IDs instead of clickable
 links. If `fallback_dm_user` is unset, the first entry of `allowed_dm_users`
 is used.
 
@@ -112,7 +117,7 @@ populated.
 ## Run
 
 ```sh
-# Daily mode after curator-run finishes — post new questions + summary, then poll replies
+# Recommended: post new MEDIUM questions and then poll for replies in one pass.
 python3 bridges/slack/bridge.py tick
 
 # Or split the two phases (e.g. if you want to resolve more frequently than you post)
@@ -125,8 +130,7 @@ python3 bridges/slack/bridge.py tick --dry-run --verbose
 
 The bridge keeps its own side-state at
 `${LINEAR_CURATOR_STATE_DIR}/slack-bridge-state.json` — it tracks which
-questions have already been posted (so reruns don't duplicate DMs) and the
-timestamp of the last summary post.
+questions have already been posted so reruns don't duplicate DMs.
 
 ## Schedule
 

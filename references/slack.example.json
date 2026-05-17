@@ -7,7 +7,6 @@
 	],
 	"allowed_channels": ["C000000ENG"],
 	"allowed_dm_users": ["alice", "bob"],
-	"summary_channel": "C000000ENG",
 	"workspace_slug": "example-workspace",
 	"fallback_dm_user": "alice"
 }

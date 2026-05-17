@@ -7,11 +7,16 @@ actions to `curator-report.jsonl`, but does not post anything to Slack by
 design — the dispatcher leaves chat I/O to a downstream consumer of the
 state file. This script is that consumer for Slack.
 
+The bridge is intentionally silent unless the curator needs human input.
+It DMs the assignee only when MEDIUM-tier asks a question, and follows up
+in the same thread only when the user's reply was ambiguous. No daily
+summaries, no per-action confirmations, no timeout pings — work that can
+be done automatically already auto-applies upstream (HIGH tier), and
+state changes are visible directly in Linear.
+
 Modes
 -----
   post-pending   Post unposted MEDIUM questions as DMs to the assignee.
-                 Also posts a daily summary of recent actions to the
-                 configured summary channel (once per ~6h).
 
   resolve        Poll Slack thread replies for each posted question, call
                  Anthropic to batch-interpret free-form replies, apply
@@ -45,7 +50,6 @@ Configuration files (under LINEAR_REFERENCES_DIR)
   slack.json       Required. Standard upstream reference file. Required
                      fields: `channels`, `allowed_channels`,
                      `allowed_dm_users`. Optional bridge fields:
-                       summary_channel:   channel ID for daily summary
                        workspace_slug:    builds <linear.app/{slug}/…> URLs
                        fallback_dm_user:  user key to DM when an issue has
                                           no assignee, or the assignee
@@ -117,7 +121,6 @@ ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
 
 QUESTION_TIMEOUT_DAYS = 7
 LOCK_RETRY_SECONDS = 5
-SUMMARY_REPOST_COOLDOWN_SECONDS = 6 * 3600
 
 CURATOR_MARKER = "*[Linear Curator]*"
 
@@ -170,8 +173,8 @@ SLACK_REF = _load_json(REFS_DIR / "slack.json", {})
 USERS_REF = _load_json(REFS_DIR / "users.json", {"users": []})
 
 ALLOWED_CHANNELS = set(SLACK_REF.get("allowed_channels") or [])
-ALLOWED_DM_USERS = set(SLACK_REF.get("allowed_dm_users") or [])
-SUMMARY_CHANNEL = SLACK_REF.get("summary_channel")
+ALLOWED_DM_USERS_LIST = list(SLACK_REF.get("allowed_dm_users") or [])
+ALLOWED_DM_USERS = set(ALLOWED_DM_USERS_LIST)
 WORKSPACE_SLUG = SLACK_REF.get("workspace_slug")
 FALLBACK_DM_USER = SLACK_REF.get("fallback_dm_user")
 
@@ -296,6 +299,23 @@ def _linear_post_comment(issue_id: str, body: str, *, dry_run: bool) -> bool:
     return True
 
 
+def _apply_state_change(issue_id: str, target: str, reasoning: str, *, dry_run: bool) -> bool:
+    """Apply a state change and (best-effort) attach a rationale comment.
+
+    State change comes first — a failed update must not leave a stray
+    "curator auto-applied" comment on an issue that didn't actually move.
+    """
+    if not _linear_update_state(issue_id, target, dry_run=dry_run):
+        return False
+    comment = (
+        f"Curator auto-applied via Slack reply: {reasoning}\n\n"
+        "_Posted by the elnora-linear Slack bridge._"
+    )
+    # Comment is informational; we don't unwind the state change if it fails.
+    _linear_post_comment(issue_id, comment, dry_run=dry_run)
+    return True
+
+
 # ---------------------------------------------------------------------------
 # State I/O
 # ---------------------------------------------------------------------------
@@ -352,7 +372,7 @@ def _save_upstream_state(state: dict) -> None:
 
 def _load_bridge_state() -> dict:
     if not BRIDGE_STATE.exists():
-        return {"version": 1, "posted": {}, "last_summary_ts": None}
+        return {"version": 1, "posted": {}}
     return json.loads(BRIDGE_STATE.read_text(encoding="utf-8"))
 
 
@@ -370,8 +390,10 @@ def _save_bridge_state(state: dict) -> None:
 def _fallback_slack_id() -> tuple[str | None, str | None]:
     candidate = FALLBACK_DM_USER
     if not candidate:
-        # First entry in allowed_dm_users that has a slack_user_id wins.
-        for key in ALLOWED_DM_USERS:
+        # First entry in allowed_dm_users (in declared order) that has a
+        # slack_user_id wins. Iterating the list, not the set, keeps the
+        # fallback deterministic across runs.
+        for key in ALLOWED_DM_USERS_LIST:
             u = USERS_BY_KEY.get(key)
             if u and u.get("slack_user_id"):
                 candidate = key
@@ -422,14 +444,6 @@ def _format_dm_question(issue_id: str, question_text: str) -> str:
         f"{CURATOR_MARKER} {link}: {question_text}\n\n"
         "Reply here with what you want to do (e.g., 'done', 'cancel', 'wait')."
     )
-
-
-def _link(issue_id: str | None) -> str:
-    if not issue_id:
-        return "(unknown)"
-    if WORKSPACE_SLUG:
-        return f"<https://linear.app/{WORKSPACE_SLUG}/issue/{issue_id}|{issue_id}>"
-    return issue_id
 
 
 # ---------------------------------------------------------------------------
@@ -496,117 +510,17 @@ def cmd_post_pending(*, dry_run: bool) -> int:
             new_post_count += 1
             _info(f"  posted DM -> {display}: {issue_id} ({question_text[:60]})")
 
-        summary_count = _maybe_post_summary(client, bridge, dry_run=dry_run)
-
         bridge["posted"] = posted
         if not dry_run:
             _save_bridge_state(bridge)
 
         _info(
-            f"post-pending: {new_post_count} new DM(s), {summary_count} summary post(s), "
+            f"post-pending: {new_post_count} new DM(s), "
             f"{len(side_keys - upstream_keys)} GC'd, {len(posted)} still tracked"
         )
         return 0
     finally:
         _release_upstream_lock(lock_fd)
-
-
-def _maybe_post_summary(client, bridge: dict, *, dry_run: bool) -> int:
-    """Post a daily summary to the configured summary channel.
-
-    Returns 1 if a summary was posted, 0 otherwise.
-    """
-    if not SUMMARY_CHANNEL:
-        _v("slack.json has no summary_channel; skipping summary")
-        return 0
-    if not REPORT_LOG.exists():
-        _v("no curator-report.jsonl yet; skipping summary")
-        return 0
-
-    last_summary_ts = bridge.get("last_summary_ts")
-    last_summary_unix = 0.0
-    if last_summary_ts:
-        try:
-            last_summary_unix = datetime.fromisoformat(
-                last_summary_ts.replace("Z", "+00:00")
-            ).timestamp()
-        except ValueError:
-            last_summary_unix = 0.0
-
-    entries_since: list[dict] = []
-    for line in REPORT_LOG.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            e = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        ts_iso = e.get("_ts")
-        if not ts_iso:
-            continue
-        try:
-            ts_unix = datetime.fromisoformat(ts_iso.replace("Z", "+00:00")).timestamp()
-        except ValueError:
-            continue
-        if ts_unix <= last_summary_unix:
-            continue
-        entries_since.append(e)
-
-    if not entries_since:
-        _v("no new report entries since last summary; skipping")
-        return 0
-
-    now_unix = time.time()
-    if last_summary_unix and (now_unix - last_summary_unix) < SUMMARY_REPOST_COOLDOWN_SECONDS:
-        _v("summary posted within last 6h; skipping")
-        return 0
-
-    high = [e for e in entries_since if e.get("tier") == "HIGH" and e.get("applied")]
-    medium = [e for e in entries_since if e.get("tier") == "MEDIUM" and e.get("queued")]
-    low = [e for e in entries_since if e.get("tier") == "LOW"]
-    errors = [e for e in entries_since if e.get("error")]
-
-    date_str = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d")
-    lines = [
-        f"{CURATOR_MARKER} *Daily summary — {date_str}*",
-        "",
-        f"Applied: {len(high)}  ·  Queued: {len(medium)}  ·  "
-        f"Reported: {len(low)}  ·  Errors: {len(errors)}",
-    ]
-    if high:
-        lines.append("")
-        lines.append("*Applied (HIGH):*")
-        for e in high[:10]:
-            a = e.get("action") or {}
-            lines.append(f"  • {_link(a.get('issue_id'))} -> {a.get('to_state')} ({a.get('rule')})")
-    if medium:
-        lines.append("")
-        lines.append("*Queued for assignee (MEDIUM):*")
-        for e in medium[:10]:
-            a = e.get("action") or {}
-            lines.append(f"  • {_link(a.get('issue_id'))} ({a.get('rule')})")
-    if low:
-        lines.append("")
-        lines.append("*Reported (LOW):*")
-        for e in low[:10]:
-            a = e.get("action") or {}
-            rationale = (a.get("rationale") or "")[:120]
-            lines.append(f"  • {_link(a.get('issue_id'))}: {rationale}")
-    if errors:
-        lines.append("")
-        lines.append("*Errors:*")
-        for e in errors[:5]:
-            a = e.get("action") or {}
-            lines.append(f"  • {_link(a.get('issue_id'))}: {e.get('error', '')[:120]}")
-
-    text = "\n".join(lines)
-    ts = _slack_post(client, SUMMARY_CHANNEL, text, dry_run=dry_run)
-    if ts:
-        bridge["last_summary_ts"] = datetime.now(timezone.utc).isoformat()
-        _info(f"  posted daily summary -> {SUMMARY_CHANNEL} ({len(entries_since)} entries)")
-        return 1
-    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -768,21 +682,12 @@ def cmd_resolve(*, dry_run: bool) -> int:
             })
 
         for k in timed_out:
-            post = posted.pop(k, {})
+            posted.pop(k, None)
             q = pending_by_key.get(k, {})
             _info(
                 f"  timeout: {q.get('issue_id', '?')} — "
-                f"{QUESTION_TIMEOUT_DAYS} days without reply, dropping question"
+                f"{QUESTION_TIMEOUT_DAYS} days without reply, dropping question silently"
             )
-            if post.get("dm_channel") and client:
-                _slack_post(
-                    client,
-                    post["dm_channel"],
-                    f"{CURATOR_MARKER} No reply in {QUESTION_TIMEOUT_DAYS} days — "
-                    "leaving the issue as-is. I'll re-evaluate next run.",
-                    thread_ts=post.get("dm_ts"),
-                    dry_run=dry_run,
-                )
             upstream["pending_questions"] = [
                 pq for pq in upstream["pending_questions"] if pq["thread_key"] != k
             ]
@@ -808,55 +713,19 @@ def cmd_resolve(*, dry_run: bool) -> int:
 
                 if decision == "apply":
                     target = r.get("target_state") or "Done"
-                    comment = (
-                        f"Curator auto-applied via Slack reply: {reasoning}\n\n"
-                        "_Posted by the elnora-linear Slack bridge._"
-                    )
-                    if _linear_post_comment(issue_id, comment, dry_run=dry_run) and _linear_update_state(
-                        issue_id, target, dry_run=dry_run
-                    ):
-                        if client:
-                            _slack_post(
-                                client,
-                                post["dm_channel"],
-                                f"{CURATOR_MARKER} {issue_id} -> {target}. Done.",
-                                thread_ts=post["dm_ts"],
-                                dry_run=dry_run,
-                            )
+                    if _apply_state_change(issue_id, target, reasoning, dry_run=dry_run):
                         applied_count += 1
                         _remove_from_upstream(upstream, k)
                         if not dry_run:
                             posted.pop(k, None)
                 elif decision == "cancel":
                     target = r.get("target_state") or "Canceled"
-                    comment = (
-                        f"Curator auto-cancelled via Slack reply: {reasoning}\n\n"
-                        "_Posted by the elnora-linear Slack bridge._"
-                    )
-                    if _linear_post_comment(issue_id, comment, dry_run=dry_run) and _linear_update_state(
-                        issue_id, target, dry_run=dry_run
-                    ):
-                        if client:
-                            _slack_post(
-                                client,
-                                post["dm_channel"],
-                                f"{CURATOR_MARKER} {issue_id} -> {target}.",
-                                thread_ts=post["dm_ts"],
-                                dry_run=dry_run,
-                            )
+                    if _apply_state_change(issue_id, target, reasoning, dry_run=dry_run):
                         applied_count += 1
                         _remove_from_upstream(upstream, k)
                         if not dry_run:
                             posted.pop(k, None)
                 elif decision == "skip":
-                    if client:
-                        _slack_post(
-                            client,
-                            post["dm_channel"],
-                            f"{CURATOR_MARKER} Got it — {issue_id} stays as-is.",
-                            thread_ts=post["dm_ts"],
-                            dry_run=dry_run,
-                        )
                     skipped_count += 1
                     _remove_from_upstream(upstream, k)
                     if not dry_run:
