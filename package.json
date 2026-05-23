@@ -76,7 +76,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.96.0",
-    "@linear/sdk": "^84.0.0",
+    "@linear/sdk": "^86.0.0",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
     "commander": "^14.0.3"
