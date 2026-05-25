@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.2](https://github.com/Elnora-AI/elnora-linear/compare/v2.1.1...v2.1.2) (2026-05-25)
+
+
+### Bug Fixes
+
+* **deps:** bump runtime and dev dependencies ([#44](https://github.com/Elnora-AI/elnora-linear/issues/44)) ([95a5c2e](https://github.com/Elnora-AI/elnora-linear/commit/95a5c2ee0e7cad1b8092d7d54f7cba41a5446705))
+
 ## [2.1.1](https://github.com/Elnora-AI/elnora-linear/compare/v2.1.0...v2.1.1) (2026-05-17)
 
 
