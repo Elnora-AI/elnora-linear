@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.3](https://github.com/Elnora-AI/elnora-linear/compare/v2.1.2...v2.1.3) (2026-05-25)
+
+
+### Miscellaneous Chores
+
+* trigger 2.1.3 release ([#47](https://github.com/Elnora-AI/elnora-linear/issues/47)) ([b769e4c](https://github.com/Elnora-AI/elnora-linear/commit/b769e4c2da95b7e7df0840f8c2836ec0ac88e078))
+
 ## [2.1.2](https://github.com/Elnora-AI/elnora-linear/compare/v2.1.1...v2.1.2) (2026-05-25)
 
 
