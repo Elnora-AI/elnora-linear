@@ -11,7 +11,7 @@
       "name": "linear-workspace",
       "description": "Linear issue management for Claude Code — search, bulk operations, intelligent agents, config-driven curator.",
       "source": "./",
-      "version": "2.1.2",
+      "version": "2.1.3",
       "category": "productivity",
       "tags": [
         "linear",

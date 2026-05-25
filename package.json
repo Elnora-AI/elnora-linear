@@ -1,6 +1,6 @@
 {
   "name": "@elnora-ai/linear",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "description": "Linear workspace for Claude Code — search, bulk edit, agents, and a config-driven curator",
   "type": "module",
   "bin": {
