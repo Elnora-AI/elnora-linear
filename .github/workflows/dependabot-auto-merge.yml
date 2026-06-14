@@ -1,0 +1,42 @@
+name: Dependabot auto-merge
+
+# Auto-approves Dependabot PRs as Carmen (via CARMEN_REVIEW_PAT) and enables
+# auto-merge. GitHub holds the merge until the required approval + status checks
+# pass — those are configured in branch protection on main. SOC 2 / ISO 27001
+# audit trails see Carmen as the approver and merger, not github-actions[bot].
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: dependabot-auto-merge-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip non-Dependabot
+        if: github.actor != 'dependabot[bot]'
+        run: echo "Not a Dependabot PR — nothing to do."
+
+      - name: Approve PR as Carmen
+        if: github.actor == 'dependabot[bot]'
+        env:
+          GH_TOKEN: ${{ secrets.CARMEN_REVIEW_PAT }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: >-
+          gh pr review --approve "$PR_URL"
+          --body "Auto-approved: Dependabot bump."
+
+      - name: Enable auto-merge as Carmen
+        if: github.actor == 'dependabot[bot]'
+        env:
+          GH_TOKEN: ${{ secrets.CARMEN_REVIEW_PAT }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --squash "$PR_URL"
