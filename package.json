@@ -70,15 +70,15 @@
   "devDependencies": {
     "@biomejs/biome": "^2.4.10",
     "@types/node": "^25.9.1",
-    "tsx": "^4.22.3",
+    "tsx": "^4.22.4",
     "typescript": "^6.0.2",
     "vitest": "^4.1.7"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.98.0",
+    "@anthropic-ai/sdk": "^0.101.0",
     "@linear/sdk": "^86.0.0",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
-    "commander": "^14.0.3"
+    "commander": "^15.0.0"
   }
 }
