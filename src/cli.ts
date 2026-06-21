@@ -38,7 +38,7 @@ import { setupProjectsCommand } from "./commands/projects.js";
 import { setupQuotaCommand } from "./commands/quota.js";
 import { setupReactionsCommand } from "./commands/reactions.js";
 import { setupRelationsCommand } from "./commands/relations.js";
-import { runSearch } from "./commands/search.js";
+import { parsePriority, runSearch } from "./commands/search.js";
 import { setupStatesCommand } from "./commands/states.js";
 import { setupStatusUpdatesCommand } from "./commands/status-updates.js";
 import {
@@ -88,6 +88,7 @@ program
 	.option("-t, --team <key>", "Restrict to team key, e.g. ENG")
 	.option("-a, --assignee <name>", "Assignee name, email, or 'me'")
 	.option("-s, --state <name>", "Workflow state name, e.g. 'In Progress'")
+	.option("-p, --priority <level>", "Priority: urgent|high|medium|low|none or 0-4", parsePriority)
 	.option("-l, --limit <n>", "Max results", positiveInt("--limit"), 25)
 	.option("-o, --output <mode>", "Output mode: text or json", "text")
 	.action(async (opts) => {
