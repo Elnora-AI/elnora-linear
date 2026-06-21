@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.2.0](https://github.com/Elnora-AI/elnora-linear/compare/v2.1.3...v2.2.0) (2026-06-21)
+
+
+### Features
+
+* **issues:** resolve friendly names in batch-create + add --dry-run ([#65](https://github.com/Elnora-AI/elnora-linear/issues/65)) ([3c7ff16](https://github.com/Elnora-AI/elnora-linear/commit/3c7ff16eeaae027c9b22801883517c608b5206bc))
+* **search:** add --priority filter to search command ([#62](https://github.com/Elnora-AI/elnora-linear/issues/62)) ([041c426](https://github.com/Elnora-AI/elnora-linear/commit/041c42681b4d40103f0a68cad2fc951cb6f2d58c))
+
+
+### Bug Fixes
+
+* **deps:** bump vite to 8.0.16 to resolve security advisories ([#66](https://github.com/Elnora-AI/elnora-linear/issues/66)) ([ce0c195](https://github.com/Elnora-AI/elnora-linear/commit/ce0c195bcc98c6c11cf973cab72714384cf2bc5a))
+
 ## [2.1.3](https://github.com/Elnora-AI/elnora-linear/compare/v2.1.2...v2.1.3) (2026-05-25)
 
 
