@@ -115,7 +115,7 @@ issues subscribe ENG-123
 issues unsubscribe ENG-123
 issues add-label ENG-123 "Type: feature"
 issues remove-label ENG-123 "Layer: frontend"
-issues batch-create <jsonFile|->  # Array of IssueCreateInput; cap 50; --yes when N>=10. NOTE: requires raw UUIDs (teamId, labelIds, stateId) — does NOT resolve names like single-issue create. Look up IDs first via teams/labels/states list.
+issues batch-create <jsonFile|->  # JSON array; cap 50; --yes when N>=10; --dry-run previews the resolved plan. Each item takes friendly names (team, project, assignee, labels, state) OR raw IDs (teamId, projectId, assigneeId, labelIds, stateId) — names resolve like single-issue create. labels = string[] or "a,b". priority = number or string. parent = "ENG-12". PREFER THIS over a shell loop of single creates.
 issues batch-update <ids> <jsonPatchFile|->  # ids = comma-separated ENG-X or UUIDs
 
 # Comments resolve / unresolve (v2.2)
@@ -221,7 +221,6 @@ The label commands are intentionally asymmetric: `add-label`/`remove-label` are 
 | `--body` (on issues) | `--description` | `--body` is for `comments create` only |
 | `add-label ENG-1 "a,b"` | Two calls, or `update --labels "current,a,b"` | `add-label` rejects comma-containing values |
 | `--project "X" --team "Y"` where X belongs to Z | Match project to its owning team | Projects are team-scoped — check `workspace-routing.md` |
-| `batch-create` with `teamName`/`labelNames` | Pass raw UUIDs (`teamId`, `labelIds`) | Batch ops skip name resolution by design |
 
 **Label flag convention:** `--label` (singular) for `issues list` filtering. `--labels "L1,L2"` (plural, comma-separated) for `create`/`update` to SET the full label set.
 
