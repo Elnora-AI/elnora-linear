@@ -264,7 +264,9 @@ export function setupIssuesCommand(program: Command): void {
 
 	issues
 		.command("create <title>")
-		.description("Create a new issue")
+		.description(
+			"Create a new issue (creating several at once? use `issues batch-create` to avoid a per-issue shell loop)",
+		)
 		.requiredOption("--team <team>", "Team name or key")
 		.option("-d, --description <desc>", "Issue description (markdown)")
 		.option("-a, --assignee <assignee>", "Assignee (name, email, or 'me')")
@@ -627,27 +629,35 @@ export function setupIssuesCommand(program: Command): void {
 	issues
 		.command("batch-create <jsonFile>")
 		.description(
-			"Create multiple issues from a JSON array of IssueCreateInput (or '-' for stdin). Cap 50. N>=10 requires --yes. NOTE: requires raw UUIDs (teamId, projectId, labelIds, stateId) — name resolution is NOT performed. See references/cli-reference.md.",
+			"Create multiple issues from a JSON array (or '-' for stdin). Each item accepts friendly names (team, project, assignee, labels, state) or raw IDs (teamId, projectId, assigneeId, labelIds, stateId); names are resolved like `issues create`. Cap 50. N>=10 requires --yes. Use --dry-run to preview the resolved plan without creating. See references/cli-reference.md.",
 		)
 		.option("--yes", "Confirm batch creation when N >= 10")
+		.option("--dry-run", "Resolve names and print the plan without creating any issues")
 		.option(
 			"--skip-project-check",
 			"Bypass the require-a-project rule for every input (use only for placeholder issues or workspaces that legitimately have unassigned issues)",
 		)
 		.action(
 			handleAsyncCommand(async (jsonFile: string, opts: Record<string, string | boolean>) => {
-				const inputs = readBatchInput(jsonFile);
-				if (inputs.length === 0) throw new ValidationError("Batch input is empty.");
-				if (inputs.length > 50) {
-					throw new ValidationError(`Batch too large (${inputs.length}). Linear API caps batches at 50.`);
+				const records = readBatchRecords(jsonFile);
+				if (records.length === 0) throw new ValidationError("Batch input is empty.");
+				if (records.length > 50) {
+					throw new ValidationError(`Batch too large (${records.length}). Linear API caps batches at 50.`);
 				}
-				if (inputs.length >= 10 && !opts.yes) {
+				if (records.length >= 10 && !opts.yes && !opts.dryRun) {
 					throw new ValidationError(
-						`Refusing to create ${inputs.length} issues without --yes.`,
-						"Re-run with --yes to confirm.",
+						`Refusing to create ${records.length} issues without --yes.`,
+						"Re-run with --yes to confirm, or --dry-run to preview.",
 					);
 				}
 				const client = await getClient();
+				const plan = await resolveFriendlyBatchInputs(client, records);
+				const inputs = plan.map((p) => p.input);
+
+				if (opts.dryRun) {
+					outputSuccess({ dryRun: true, count: plan.length, issues: plan.map((p) => p.display) });
+					return;
+				}
 
 				if (!opts.skipProjectCheck) {
 					const teamIds = [...new Set(inputs.map((i) => i.teamId).filter((id): id is string => Boolean(id)))];
@@ -1076,7 +1086,7 @@ export function setupIssuesCommand(program: Command): void {
 		);
 }
 
-function readBatchInput(jsonFile: string): IssueCreateInput[] {
+function readBatchRecords(jsonFile: string): Record<string, unknown>[] {
 	const raw = readJsonSource(jsonFile);
 	let parsed: unknown;
 	try {
@@ -1088,7 +1098,322 @@ function readBatchInput(jsonFile: string): IssueCreateInput[] {
 	if (!Array.isArray(parsed)) {
 		throw new ValidationError("Batch input must be a JSON array of issue inputs.");
 	}
-	return parsed as IssueCreateInput[];
+	for (const [i, item] of parsed.entries()) {
+		if (typeof item !== "object" || item === null || Array.isArray(item)) {
+			throw new ValidationError(`Batch item #${i + 1} must be a JSON object.`);
+		}
+	}
+	return parsed as Record<string, unknown>[];
+}
+
+// --- batch-create name resolution -------------------------------------------
+// Each batch record may use friendly names (team / project / assignee / labels
+// / state) OR raw IDs (teamId / projectId / labelIds / stateId / assigneeId).
+// Friendly names are resolved to UUIDs the same way `issues create` does, so an
+// agent can write one JSON array instead of hand-rolling a shell loop over
+// single creates (a pattern that invites silent index-misalignment bugs).
+
+/** Resolved lookup maps keyed by lower-cased name / key / id. */
+export interface FriendlyLookups {
+	teams: Map<string, { id: string; name: string; key: string }>;
+	projects: Map<string, { id: string; name: string }>;
+	users: Map<string, { id: string; name: string }>;
+	labels: Map<string, { id: string; name: string }>;
+	/** Keyed `${teamId}\n${lowerStateNameOrId}` — states are team-scoped. */
+	states: Map<string, { id: string; name: string }>;
+	/** Keyed by lower-cased issue identifier (e.g. "eng-12"). */
+	parents: Map<string, { id: string; identifier: string }>;
+}
+
+export interface BatchCreatePlanItem {
+	input: IssueCreateInput;
+	display: {
+		title: string;
+		team: string;
+		project: string | null;
+		assignee: string | null;
+		labels: string[];
+		state: string | null;
+		priority: number | null;
+	};
+}
+
+const lc = (s: string): string => s.toLowerCase();
+
+/** Normalise a `labels` field that may be a string[] or a comma-separated string. */
+function normalizeLabelNames(value: unknown, at: string): string[] {
+	if (value === undefined || value === null) return [];
+	if (Array.isArray(value)) {
+		return value
+			.map((v) => {
+				if (typeof v !== "string") throw new ValidationError(`${at}: "labels" must be an array of strings.`);
+				return v.trim();
+			})
+			.filter(Boolean);
+	}
+	if (typeof value === "string") {
+		return value
+			.split(",")
+			.map((s) => s.trim())
+			.filter(Boolean);
+	}
+	throw new ValidationError(`${at}: "labels" must be a string or an array of strings.`);
+}
+
+/**
+ * Pure: turn one friendly record + pre-resolved lookups into an
+ * IssueCreateInput plus a human-readable display row. Throws ValidationError /
+ * NotFoundError with a 1-based item index so batch failures are diagnosable.
+ */
+export function buildBatchCreateInput(
+	record: Record<string, unknown>,
+	index: number,
+	lookups: FriendlyLookups,
+): BatchCreatePlanItem {
+	const at = `Issue #${index + 1}`;
+
+	const title = record.title;
+	if (typeof title !== "string" || title.trim().length === 0) {
+		throw new ValidationError(`${at}: "title" is required and must be a non-empty string.`);
+	}
+
+	// Team is required: raw teamId wins, otherwise resolve friendly "team".
+	let teamId: string;
+	let teamName: string;
+	if (typeof record.teamId === "string" && record.teamId) {
+		teamId = record.teamId;
+		teamName = lookups.teams.get(lc(record.teamId))?.name ?? record.teamId;
+	} else if (typeof record.team === "string" && record.team) {
+		const t = lookups.teams.get(lc(record.team));
+		if (!t) throw new NotFoundError("Team", record.team);
+		teamId = t.id;
+		teamName = t.name;
+	} else {
+		throw new ValidationError(`${at}: a "team" (name/key) or "teamId" is required.`);
+	}
+
+	const input: IssueCreateInput = { teamId, title };
+	const display: BatchCreatePlanItem["display"] = {
+		title,
+		team: teamName,
+		project: null,
+		assignee: null,
+		labels: [],
+		state: null,
+		priority: null,
+	};
+
+	if (record.description !== undefined) {
+		if (typeof record.description !== "string") throw new ValidationError(`${at}: "description" must be a string.`);
+		input.description = record.description;
+	}
+
+	if (record.priority !== undefined && record.priority !== null) {
+		const p = typeof record.priority === "number" ? record.priority : parsePriority(String(record.priority));
+		if (p !== undefined) {
+			input.priority = p;
+			display.priority = p;
+		}
+	}
+
+	if (record.dueDate !== undefined) {
+		const d = parseDate(String(record.dueDate));
+		if (d) input.dueDate = d;
+	}
+
+	if (typeof record.assigneeId === "string" && record.assigneeId) {
+		input.assigneeId = record.assigneeId;
+		display.assignee = lookups.users.get(lc(record.assigneeId))?.name ?? record.assigneeId;
+	} else if (typeof record.assignee === "string" && record.assignee) {
+		const u = lookups.users.get(lc(record.assignee));
+		if (!u) throw new NotFoundError("User", record.assignee);
+		input.assigneeId = u.id;
+		display.assignee = u.name;
+	}
+
+	if (typeof record.projectId === "string" && record.projectId) {
+		input.projectId = record.projectId;
+		display.project = lookups.projects.get(lc(record.projectId))?.name ?? record.projectId;
+	} else if (typeof record.project === "string" && record.project) {
+		const p = lookups.projects.get(lc(record.project));
+		if (!p) throw new NotFoundError("Project", record.project);
+		input.projectId = p.id;
+		display.project = p.name;
+	}
+
+	const labelIds: string[] = [];
+	const labelDisplay: string[] = [];
+	if (record.labelIds !== undefined) {
+		if (!Array.isArray(record.labelIds)) throw new ValidationError(`${at}: "labelIds" must be an array of strings.`);
+		for (const id of record.labelIds) {
+			if (typeof id !== "string") throw new ValidationError(`${at}: "labelIds" must be an array of strings.`);
+			labelIds.push(id);
+			labelDisplay.push(lookups.labels.get(lc(id))?.name ?? id);
+		}
+	}
+	for (const name of normalizeLabelNames(record.labels, at)) {
+		const l = lookups.labels.get(lc(name));
+		if (!l) throw new NotFoundError("Label", name);
+		labelIds.push(l.id);
+		labelDisplay.push(l.name);
+	}
+	if (labelIds.length > 0) {
+		input.labelIds = labelIds;
+		display.labels = labelDisplay;
+	}
+
+	if (typeof record.stateId === "string" && record.stateId) {
+		input.stateId = record.stateId;
+		display.state = lookups.states.get(`${teamId}\n${lc(record.stateId)}`)?.name ?? record.stateId;
+	} else if (typeof record.state === "string" && record.state) {
+		const s = lookups.states.get(`${teamId}\n${lc(record.state)}`);
+		if (!s) throw new NotFoundError("State", record.state);
+		input.stateId = s.id;
+		display.state = s.name;
+	}
+
+	if (typeof record.parentId === "string" && record.parentId) {
+		input.parentId = record.parentId;
+	} else if (typeof record.parent === "string" && record.parent) {
+		const par = lookups.parents.get(lc(record.parent));
+		if (!par) throw new NotFoundError("Parent issue", record.parent);
+		input.parentId = par.id;
+	}
+
+	return { input, display };
+}
+
+const asStr = (v: unknown): string | undefined => (typeof v === "string" && v.length > 0 ? v : undefined);
+const distinctStrings = (values: unknown[]): string[] => [
+	...new Set(values.map(asStr).filter((v): v is string => v !== undefined)),
+];
+
+/**
+ * Resolve every friendly name across the batch into UUIDs, fetching each entity
+ * list at most once (teams, projects, users, labels) plus one workflow-state
+ * query per referenced team. Returns one plan item per record, in order.
+ */
+export async function resolveFriendlyBatchInputs(
+	client: LinearClient,
+	records: Record<string, unknown>[],
+): Promise<BatchCreatePlanItem[]> {
+	const lookups: FriendlyLookups = {
+		teams: new Map(),
+		projects: new Map(),
+		users: new Map(),
+		labels: new Map(),
+		states: new Map(),
+		parents: new Map(),
+	};
+
+	// Teams — required on every record, resolved first (state lookups need teamId).
+	const teamRefs = distinctStrings(records.flatMap((r) => [r.team, r.teamId]));
+	if (teamRefs.length > 0) {
+		const all = await fetchAllNodes(await client.teams({ first: 250 }));
+		const byKey = new Map<string, { id: string; name: string; key: string }>();
+		for (const t of all) {
+			const v = { id: t.id, name: t.name, key: t.key };
+			byKey.set(lc(t.id), v);
+			byKey.set(lc(t.name), v);
+			byKey.set(lc(t.key), v);
+		}
+		for (const ref of teamRefs) {
+			const found = byKey.get(lc(ref));
+			if (!found) throw new NotFoundError("Team", ref);
+			lookups.teams.set(lc(ref), found);
+		}
+	}
+
+	const projectRefs = distinctStrings(records.flatMap((r) => [r.project, r.projectId]));
+	if (projectRefs.length > 0) {
+		const all = await fetchAllNodes(await client.projects({ first: 250 }));
+		const byKey = new Map<string, { id: string; name: string }>();
+		for (const p of all) {
+			const v = { id: p.id, name: p.name };
+			byKey.set(lc(p.id), v);
+			byKey.set(lc(p.name), v);
+		}
+		for (const ref of projectRefs) {
+			const found = byKey.get(lc(ref));
+			if (!found) throw new NotFoundError("Project", ref);
+			lookups.projects.set(lc(ref), found);
+		}
+	}
+
+	const userRefs = distinctStrings(records.flatMap((r) => [r.assignee, r.assigneeId]));
+	if (userRefs.length > 0) {
+		const all = await fetchAllNodes(await client.users({ first: 250 }));
+		const byKey = new Map<string, { id: string; name: string }>();
+		for (const u of all) {
+			const v = { id: u.id, name: u.name };
+			byKey.set(lc(u.id), v);
+			byKey.set(lc(u.name), v);
+			if (u.email) byKey.set(lc(u.email), v);
+		}
+		for (const ref of userRefs) {
+			if (lc(ref) === "me") {
+				const me = await client.viewer;
+				lookups.users.set("me", { id: me.id, name: me.name });
+				continue;
+			}
+			const found = byKey.get(lc(ref));
+			if (!found) throw new NotFoundError("User", ref);
+			lookups.users.set(lc(ref), found);
+		}
+	}
+
+	const labelRefs = distinctStrings([
+		...records.flatMap((r) => normalizeLabelNames(r.labels, "labels")),
+		...records.flatMap((r) => (Array.isArray(r.labelIds) ? (r.labelIds as unknown[]) : [])),
+	]);
+	if (labelRefs.length > 0) {
+		const all = await fetchAllNodes(await client.issueLabels({ first: 250 }));
+		const byKey = new Map<string, { id: string; name: string }>();
+		for (const l of all) {
+			const v = { id: l.id, name: l.name };
+			byKey.set(lc(l.id), v);
+			byKey.set(lc(l.name), v);
+		}
+		for (const ref of labelRefs) {
+			const found = byKey.get(lc(ref));
+			if (!found) throw new NotFoundError("Label", ref);
+			lookups.labels.set(lc(ref), found);
+		}
+	}
+
+	// States are team-scoped: for each record, resolve its teamId, then fetch
+	// that team's workflow states once.
+	const teamIdOf = (r: Record<string, unknown>): string | undefined => {
+		const raw = asStr(r.teamId);
+		if (raw) return lookups.teams.get(lc(raw))?.id ?? raw;
+		const name = asStr(r.team);
+		return name ? lookups.teams.get(lc(name))?.id : undefined;
+	};
+	const stateTeamIds = new Set<string>();
+	for (const r of records) {
+		if (asStr(r.state) || asStr(r.stateId)) {
+			const tid = teamIdOf(r);
+			if (tid) stateTeamIds.add(tid);
+		}
+	}
+	for (const tid of stateTeamIds) {
+		const conn = await client.workflowStates({ first: 250, filter: { team: { id: { eq: tid } } } });
+		for (const s of await fetchAllNodes(conn)) {
+			const v = { id: s.id, name: s.name };
+			lookups.states.set(`${tid}\n${lc(s.id)}`, v);
+			lookups.states.set(`${tid}\n${lc(s.name)}`, v);
+		}
+	}
+
+	// Parents referenced by human identifier (e.g. "ENG-12").
+	const parentRefs = distinctStrings(records.map((r) => r.parent));
+	for (const ref of parentRefs) {
+		const found = await findIssueByIdentifier(client, parseIssueIdentifier(ref));
+		if (!found) throw new NotFoundError("Parent issue", ref);
+		lookups.parents.set(lc(ref), { id: found.id, identifier: ref });
+	}
+
+	return records.map((record, i) => buildBatchCreateInput(record, i, lookups));
 }
 
 function readBatchPatch(jsonFile: string): IssueUpdateInput {
