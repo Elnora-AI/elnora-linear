@@ -1,6 +1,6 @@
 {
   "name": "linear-workspace",
-  "version": "2.1.3",
+  "version": "2.2.0",
   "description": "Linear issue management for Claude Code — search, bulk operations, intelligent agents, config-driven curator. Backed by the elnora-linear CLI.",
   "author": {
     "name": "Elnora AI",
