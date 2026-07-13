@@ -19,7 +19,7 @@ elnora-linear curator-run --output text
 A specific source by name:
 
 ```bash
-elnora-linear curator-run --source "vanta-failing-tests"
+elnora-linear curator-run --source "ci-failing-tests"
 ```
 
 ## What it reports

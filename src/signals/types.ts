@@ -7,7 +7,7 @@
 // config into a concrete SignalSource instance.
 
 export interface Signal {
-	/** Name of the signal source (from config), e.g. "vanta-failing-tests". */
+	/** Name of the signal source (from config), e.g. "ci-failing-tests". */
 	source: string;
 	/** Signal source type, e.g. "external_command". */
 	type: string;
