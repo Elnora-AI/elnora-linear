@@ -6,7 +6,7 @@
 //   3. ~/.config/elnora-linear/ (if it exists)
 //   4. the bundled `references/` shipped in the npm package (placeholders only)
 //
-// For each of the 7 reference names, the loader looks for `<name>.json` first
+// For each of the 8 reference names, the loader looks for `<name>.json` first
 // (populated by the user) and falls back to `<name>.placeholder.json`. Missing
 // schemas or invalid JSON throw. Schema-validation failures throw in strict
 // mode (default) and warn-and-continue in non-strict mode.

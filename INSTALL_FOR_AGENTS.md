@@ -5,7 +5,7 @@
 > stop reading this file and open `README.md` instead. This file walks an agent
 > through a multi-step setup that includes reading an API key from the user,
 > writing config to `~/.config/elnora-linear/`, and making live calls against
-> the Linear GraphQL API. Humans should follow the README's Quick Start.
+> the Linear GraphQL API. Humans should follow the README's Install section.
 
 You are the agent handing off after the user installed `elnora-linear`
 (`npm install -g @elnora-ai/linear`, optionally also the Claude Code plugin
@@ -66,6 +66,17 @@ Tell the user, verbatim:
 > https://linear.app/settings/api in your browser, click **Create key**, give
 > it a name like "elnora-linear", copy the value, and paste it here. The key
 > starts with `lin_api_`.
+
+**Offer to drive the browser (if available).** This step sends the user
+into a browser UI. If a browser-automation MCP such as `chrome-devtools`
+is connected (its `mcp__chrome-devtools__*` tools are loaded), offer to do
+the clicking for them: "If you'd rather, I can open the Linear API-key
+page and create the key for you in your own Chrome — just say the word."
+If they accept, drive the **Create key** flow via the
+`mcp__chrome-devtools__*` tools and read the generated `lin_api_…` value
+straight into the steps below. Keep it an offer: if the MCP isn't
+connected or the user prefers to click through themselves, fall back to
+the verbatim instruction above.
 
 When the user pastes the key, set it in the environment AND write it to the
 config file. Use a strict `umask` so the file is created at mode `0600`:
@@ -168,6 +179,16 @@ Tell the user, verbatim:
 > in your browser, click **Create Key**, copy the value, and paste it here.
 > The key starts with `sk-ant-`.
 
+**Offer to drive the browser (if available).** As in Step 2, if a
+browser-automation MCP such as `chrome-devtools` is connected (its
+`mcp__chrome-devtools__*` tools are loaded), offer to open the Anthropic
+console keys page and run the **Create Key** flow in the user's own Chrome
+rather than making them click through: "I can create this key for you in
+your browser if you'd prefer." If they accept, drive it via the
+`mcp__chrome-devtools__*` tools and read the `sk-ant-…` value straight into
+the steps below. Keep it an offer — fall back to the verbatim instruction
+above if the MCP isn't connected or the user declines.
+
 When the user pastes it, set the env var AND append it to the same `.env`
 file the Linear key lives in (the CLI auto-loads that file on startup, so the
 key survives the next shell):
@@ -234,6 +255,18 @@ and reuse it in Step 4e — do not ask again there.
 - **Both** — walk all 8 substeps below. The token gets persisted as
   `SLACK_TOKEN` here (reader); Step 4e adds a second line for
   `SLACK_BOT_TOKEN` (bridge) pointing at the same `xoxb-…` value.
+
+**Offer to drive the browser (if available).** Substeps 1–3 (create the
+app, add scopes, install to the workspace) are all browser UI. If a
+browser-automation MCP such as `chrome-devtools` is connected (its
+`mcp__chrome-devtools__*` tools are loaded), offer to run them in the
+user's own Chrome instead of narrating clicks: "I can set up the Slack app
+— create it, add the scopes, and install it — in your browser if you'd
+like." If they accept, drive substeps 1–3 via the `mcp__chrome-devtools__*`
+tools, confirming each with the user as you go, and read the `xoxb-…` token
+from substep 3 into substep 4. Keep it an offer — if the MCP isn't
+connected or the user prefers to click through themselves, fall back to
+the manual substeps below.
 
 Walk substeps in order — confirm each before moving on:
 

@@ -280,16 +280,16 @@ describe("syncUsers (live, fake client)", () => {
 			join(tmp, "users.json"),
 			JSON.stringify({
 				users: [
-					{ key: "carmen", name: "Carmen Kivisild", linear_user_id: "u-carmen", slack_user_id: "U0CARMEN" },
-					{ key: "risto", name: "Risto", linear_user_id: "u-risto", slack_user_id: "U0RISTO" },
+					{ key: "alice", name: "Alice Example", linear_user_id: "u-alice", slack_user_id: "U0ALICE" },
+					{ key: "bob", name: "Bob Example", linear_user_id: "u-bob", slack_user_id: "U0BOB" },
 				],
 			}),
 		);
 
 		const client = fakeClient({
 			users: [
-				{ id: "u-carmen", name: "Carmen Kivisild", email: "carmen@example.com", displayName: "carmen" },
-				{ id: "u-risto", name: "Risto", email: "risto@example.com", displayName: "risto" },
+				{ id: "u-alice", name: "Alice Example", email: "alice@example.com", displayName: "alice" },
+				{ id: "u-bob", name: "Bob Example", email: "bob@example.com", displayName: "bob" },
 				{ id: "u-new", name: "New Hire", email: "new@example.com", displayName: "new" },
 			],
 		});
@@ -297,16 +297,16 @@ describe("syncUsers (live, fake client)", () => {
 		await _internal.syncUsers(client, tmp);
 		const written = JSON.parse(readFileSync(join(tmp, "users.json"), "utf8"));
 
-		const carmen = written.users.find((u: { key: string }) => u.key === "carmen");
-		const risto = written.users.find((u: { key: string }) => u.key === "risto");
+		const alice = written.users.find((u: { key: string }) => u.key === "alice");
+		const bob = written.users.find((u: { key: string }) => u.key === "bob");
 		const newHire = written.users.find((u: { key: string }) => u.key === "new");
 
-		expect(carmen.slack_user_id).toBe("U0CARMEN");
-		expect(risto.slack_user_id).toBe("U0RISTO");
+		expect(alice.slack_user_id).toBe("U0ALICE");
+		expect(bob.slack_user_id).toBe("U0BOB");
 		// New user from Linear comes in without a slack_user_id — that's correct.
 		expect(newHire.slack_user_id).toBeUndefined();
 		// And mapped fields still update (email picked up from API).
-		expect(carmen.email).toBe("carmen@example.com");
+		expect(alice.email).toBe("alice@example.com");
 	});
 
 	it("matches by linear_user_id even if the key has drifted", async () => {
