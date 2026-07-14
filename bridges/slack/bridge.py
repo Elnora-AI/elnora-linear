@@ -690,11 +690,14 @@ def cmd_resolve(*, dry_run: bool) -> int:
                 # Upstream already removed this thread_key.
                 continue
             q = pending_by_key[k]
+            # Time out from when the DM was actually posted, not from when
+            # the curator staged the question — a backlog question staged
+            # weeks ago would otherwise be DM'd and instantly dropped.
             try:
                 posted_at_unix = datetime.fromisoformat(
-                    post["posted_at"].replace("Z", "+00:00")
+                    (post.get("bridge_posted_at") or post["posted_at"]).replace("Z", "+00:00")
                 ).timestamp()
-            except (ValueError, KeyError, AttributeError):
+            except (ValueError, KeyError, AttributeError, TypeError):
                 posted_at_unix = now_unix
             if now_unix - posted_at_unix > timeout_s:
                 timed_out.append(k)
