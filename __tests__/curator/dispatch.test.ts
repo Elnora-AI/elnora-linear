@@ -130,4 +130,35 @@ describe("dispatchActions", () => {
 		expect(result.queued).toHaveLength(0);
 		expect(result.skipped[0].reason).toBe("debounced");
 	});
+
+	it("skips MEDIUM actions without question_text instead of staging them", async () => {
+		const state = emptyState();
+		const actions: CuratorAction[] = [
+			{
+				issue_id: "ENG-1",
+				tier: "MEDIUM",
+				rule: "M1",
+				rationale: "x",
+				decision: "ask_in_slack",
+				proposed_action: { type: "set_state", from: "In Review", to: "In Progress" },
+				question_text: "",
+				signals_cited: [],
+			},
+			{
+				issue_id: "ENG-2",
+				tier: "MEDIUM",
+				rule: "M1",
+				rationale: "x",
+				decision: "ask_in_slack",
+				proposed_action: { type: "set_state", from: "Todo", to: "Done" },
+				question_text: "real question?",
+				signals_cited: [],
+			},
+		];
+		const result = await dispatchActions(fakeClient, actions, state, { stateDir });
+		expect(result.skipped.filter((s) => s.reason === "missing_question_text")).toHaveLength(1);
+		expect(result.queued).toHaveLength(1);
+		expect(state.pending_questions).toHaveLength(1);
+		expect(state.pending_questions[0].issue_id).toBe("ENG-2");
+	});
 });

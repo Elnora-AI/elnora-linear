@@ -157,8 +157,15 @@ export async function dispatchActions(
 			result.skipped.push({ issue_id: action.issue_id, rule: action.rule, reason: "cap_medium" });
 			continue;
 		}
-		mediumCount++;
 		const m = action as CuratorMediumAction;
+		// The LLM occasionally omits question_text; a textless entry can never
+		// be posted or resolved, so it would sit in pending_questions forever.
+		if (!m.question_text?.trim()) {
+			result.skipped.push({ issue_id: m.issue_id, rule: m.rule, reason: "missing_question_text" });
+			appendReportLine({ tier: "MEDIUM", action, error: "missing_question_text" }, { stateDir: opts.stateDir });
+			continue;
+		}
+		mediumCount++;
 		const proposed = m.proposed_action;
 		const key = debounceKey(m.issue_id, { type: proposed.type, from: proposed.from, to: proposed.to });
 		state.pending_questions.push({
