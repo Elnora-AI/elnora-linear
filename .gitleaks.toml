@@ -1,0 +1,13 @@
+# gitleaks config for elnora-linear.
+# Extend the built-in ruleset, then allow-list the one path that legitimately
+# contains a token-shaped string: the auth unit test hard-codes fabricated
+# LINEAR_API_KEY fixtures (e.g. "lin_api_envtestkey123") to exercise env-var
+# parsing. These are not real credentials.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Auth unit test hard-codes fabricated LINEAR_API_KEY fixtures, not real credentials."
+paths = [
+  '''__tests__/client/auth\.test\.ts''',
+]
