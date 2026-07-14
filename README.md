@@ -175,6 +175,16 @@ Each file has a JSON Schema in [`schemas/`](schemas/) and a populated example at
 
 ---
 
+## Part of the Elnora family
+
+`elnora-linear` works 100% standalone, but it is one of a family of config-driven Claude Code tools published by [Elnora AI](https://github.com/Elnora-AI). Each installs in one line, hardcodes nothing about any specific workspace, and chains with the others when installed side by side:
+
+- **[elnora-slack](https://github.com/Elnora-AI/elnora-slack)** — the full Slack Web API as a CLI + Claude Code plugin. Chains both directions: the curator's `slack_messages` signal source reads watched channels to detect issue-state drift, and its MEDIUM-confidence proposals are designed to route back to you as Slack DMs for one-tap confirmation instead of sitting in a local review queue.
+- **[knowledge-vault](https://github.com/Elnora-AI/knowledge-vault)** — a structured markdown knowledge base (Obsidian-compatible) with agents that file, link, and curate notes. Chains naturally with Linear: meeting notes and decision docs in the vault become tracked issues via `linear-url-to-issues` / `issues batch-create`, and closed-issue outcomes flow back into vault trackers.
+- **[elnora-google-workspace](https://github.com/Elnora-AI/elnora-google-workspace)** — Gmail, Calendar, Drive, Docs, and Sheets as a CLI + plugin. Chains with Linear for triage loops: turn action items from email threads and meetings into Linear issues, and export `--output csv` reports from `elnora-linear` straight into Sheets.
+
+Browse the whole family at [github.com/Elnora-AI](https://github.com/Elnora-AI). Every repo follows the same contract: universal and config-driven, agent-safe mutations (dry-run defaults, typed confirmations, audit logs), and credentials that never leave `~/.config/<tool>/`.
+
 ## Development
 
 ```sh
