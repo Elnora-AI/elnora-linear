@@ -56,6 +56,9 @@ Configuration files (under LINEAR_REFERENCES_DIR)
                                           no assignee, or the assignee
                                           isn't in allowed_dm_users.
                                           Defaults to allowed_dm_users[0].
+                       max_new_dms_per_tick: cap on NEW question DMs posted
+                                          per tick (default 10) so a backlog
+                                          drains gradually.
   users.json       Required. Each user object needs `name`; optionally
                      `key` and `slack_user_id`. The bridge matches the
                      Linear `assignee` display string against `name`.
@@ -181,6 +184,9 @@ ALLOWED_DM_USERS_LIST = list(SLACK_REF.get("allowed_dm_users") or [])
 ALLOWED_DM_USERS = set(ALLOWED_DM_USERS_LIST)
 WORKSPACE_SLUG = SLACK_REF.get("workspace_slug")
 FALLBACK_DM_USER = SLACK_REF.get("fallback_dm_user")
+# Cap on NEW question DMs posted per tick, so a backlog (e.g. a fallback user
+# becoming DM-able) drains gradually instead of flooding one person's DMs.
+MAX_NEW_DMS_PER_TICK = int(SLACK_REF.get("max_new_dms_per_tick") or 10)
 
 USERS_BY_NAME: dict[str, dict] = {
     u["name"]: u for u in USERS_REF.get("users", []) if u.get("name")
@@ -436,6 +442,29 @@ def _resolve_assignee_slack_id(issue_id: str) -> tuple[str | None, str | None]:
 # Message formatting
 # ---------------------------------------------------------------------------
 
+def _question_text(q: dict) -> str:
+    """Return the question text, tolerating entries staged without one.
+
+    pending_questions entries written by curator builds before the
+    missing_question_text guard can lack the field entirely; synthesize a
+    usable question from the thread_key so the entry can still be posted
+    and resolved instead of crashing the tick.
+    """
+    text = (q.get("question_text") or "").strip()
+    if text:
+        return text
+    key = q.get("thread_key") or ""
+    try:
+        proposed = json.loads(key.split(":", 1)[1])
+        return (
+            f"The curator proposed: {proposed.get('type')} "
+            f"{proposed.get('from')} → {proposed.get('to')} "
+            "(no question text was recorded). Apply it?"
+        )
+    except (IndexError, json.JSONDecodeError):
+        return "The curator proposed a state change (no question text was recorded). Apply it?"
+
+
 def _format_dm_question(issue_id: str, question_text: str) -> str:
     if WORKSPACE_SLUG:
         link = f"<https://linear.app/{WORKSPACE_SLUG}/issue/{issue_id}|{issue_id}>"
@@ -480,9 +509,15 @@ def cmd_post_pending(*, dry_run: bool) -> int:
         # Post unposted upstream questions
         new_post_count = 0
         for k in sorted(upstream_keys - side_keys):
+            if new_post_count >= MAX_NEW_DMS_PER_TICK:
+                _info(
+                    f"post-pending: hit max_new_dms_per_tick={MAX_NEW_DMS_PER_TICK}; "
+                    "remaining questions post on later ticks"
+                )
+                break
             q = pending_by_key[k]
             issue_id = q["issue_id"]
-            question_text = q["question_text"]
+            question_text = _question_text(q)
             posted_at = q.get("posted_at")
 
             slack_id, display = _resolve_assignee_slack_id(issue_id)
@@ -673,7 +708,7 @@ def cmd_resolve(*, dry_run: bool) -> int:
             payload.append({
                 "thread_key": k,
                 "issue_id": q["issue_id"],
-                "question_text": q["question_text"],
+                "question_text": _question_text(q),
                 "posted_at": post["posted_at"],
                 "replies": [
                     {
