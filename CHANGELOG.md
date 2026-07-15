@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.1](https://github.com/Elnora-AI/elnora-linear/compare/v2.2.0...v2.2.1) (2026-07-15)
+
+
+### Bug Fixes
+
+* **curator:** never stage or crash on questions without question_text ([#82](https://github.com/Elnora-AI/elnora-linear/issues/82)) ([39ad9be](https://github.com/Elnora-AI/elnora-linear/commit/39ad9be0eed31fe878bd352600a38c7d6498ca77))
+
 ## [2.2.0](https://github.com/Elnora-AI/elnora-linear/compare/v2.1.3...v2.2.0) (2026-06-21)
 
 
