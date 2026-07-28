@@ -39,6 +39,7 @@
     "dev": "tsx src/cli.ts",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:bridge": "python3 -m pytest __tests__/bridges -q",
     "lint": "biome check src/ __tests__/",
     "lint:fix": "biome check --write src/ __tests__/",
     "format": "biome format --write src/ __tests__/",

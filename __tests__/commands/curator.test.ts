@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { type CuratorReport, formatCuratorReport, runCurator } from "../../src/commands/curator.js";
+import { type CuratorReport, curatorExitCode, formatCuratorReport, runCurator } from "../../src/commands/curator.js";
 
 let tmp: string;
 let originalEnv: string | undefined;
@@ -87,6 +87,34 @@ describe("runCurator", () => {
 		const works = report.sources.find((s) => s.name === "works");
 		expect(future?.error).toContain("not yet implemented");
 		expect(works?.signalCount).toBe(1);
+	});
+});
+
+describe("curatorExitCode", () => {
+	it("is 0 for a run that never reached the rule engine", () => {
+		expect(curatorExitCode({ sources: [], pipeline: { ranLlm: false, skippedReason: "--collect-only passed" } })).toBe(
+			0,
+		);
+	});
+
+	it("is 0 for a successful rule-engine run", () => {
+		expect(curatorExitCode({ sources: [], pipeline: { ranLlm: true } })).toBe(0);
+	});
+
+	it("is non-zero when the rule engine errored", () => {
+		const report: CuratorReport = {
+			sources: [],
+			pipeline: { ranLlm: false, skippedReason: "error", error: "fetch failed" },
+		};
+		expect(curatorExitCode(report)).toBe(1);
+	});
+
+	it("stays 0 when only a signal source failed", () => {
+		const report: CuratorReport = {
+			sources: [{ name: "x", type: "github_commits", enabled: true, signalCount: 0, signals: [], error: "boom" }],
+			pipeline: { ranLlm: true },
+		};
+		expect(curatorExitCode(report)).toBe(0);
 	});
 });
 
