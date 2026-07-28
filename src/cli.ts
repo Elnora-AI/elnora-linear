@@ -19,7 +19,7 @@ import { runCleanup } from "./commands/cleanup.js";
 import { setupCommentsCommand } from "./commands/comments.js";
 import { setupCompletionCommand } from "./commands/completion.js";
 import { setupContextCommand } from "./commands/context.js";
-import { runCurator } from "./commands/curator.js";
+import { curatorExitCode, runCurator } from "./commands/curator.js";
 import { setupCuratorSlackBridgeCommand } from "./commands/curator-slack-bridge.js";
 import { setupCustomerNeedsCommand } from "./commands/customer-needs.js";
 import { setupCustomersCommand } from "./commands/customers.js";
@@ -196,7 +196,14 @@ program
 	.option("--state-dir <path>", "Override the curator state directory (default ~/.config/elnora-linear/state/)")
 	.option("-o, --output <mode>", "Output mode: text or json", "text")
 	.action(async (opts) => {
-		await runCurator(opts);
+		const report = await runCurator(opts);
+		const code = curatorExitCode(report);
+		if (code !== 0) {
+			// stdout is the human run log; schedulers and monitors watch stderr
+			// and the exit code. A rule-engine failure has to reach both.
+			process.stderr.write(`[error] curator rule engine failed: ${report.pipeline?.error}\n`);
+			process.exitCode = code;
+		}
 	});
 
 setupCuratorSlackBridgeCommand(program);

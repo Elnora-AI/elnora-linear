@@ -171,6 +171,11 @@ bridge's DM and try to handle it itself.
   two never race.
 - `--dry-run` is exhaustive: no Slack posts, no Linear mutations, no state
   file writes.
+- A question is only ever expired on the strength of a **successful** thread
+  read that showed no reply. If Slack cannot be reached, the question is
+  retained and the tick exits 5 — expiry is irreversible (the thread_key
+  lands in `processed_thread_keys` and the curator never re-asks), so it must
+  never rest on a read that failed.
 
 ## Exit codes
 
@@ -180,4 +185,19 @@ bridge's DM and try to handle it itself.
 | 1 | Unhandled exception |
 | 2 | Missing required config (e.g. `SLACK_BOT_TOKEN`) |
 | 4 | Upstream state lock held by another process |
+| 5 | One or more threads could not be read; their questions were retained |
 | 130 | Interrupted (SIGINT) |
+
+Diagnostics (`[warn]`, `[error]`) go to stderr; normal progress goes to
+stdout. If you schedule the bridge, capture both — the plist in this
+directory writes them to separate files.
+
+## Tests
+
+```bash
+pip install pytest
+python3 -m pytest __tests__/bridges -q     # from the repo root
+```
+
+The tests stub every Slack and Anthropic call, so they need no tokens and
+make no network requests.

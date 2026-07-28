@@ -154,6 +154,23 @@ async function runRuleEnginePhase(
 	}
 }
 
+/**
+ * Process exit code for a finished curator run.
+ *
+ * A rule-engine failure is a failed run, not a quiet variant of a healthy
+ * one: the pipeline collected signals and applied nothing. Exiting 0 there
+ * makes a broken run indistinguishable from a no-op run to launchd, cron,
+ * and any log-scraping monitor — which is how a bad API key burned two
+ * scheduled runs before anyone noticed.
+ *
+ * Signal-source errors deliberately do NOT fail the run: sources are
+ * independent and best-effort, and the rule engine still sees everything
+ * the healthy ones collected.
+ */
+export function curatorExitCode(report: CuratorReport): number {
+	return report.pipeline?.error ? 1 : 0;
+}
+
 /** Pure: render a curator report as human-readable text. */
 export function formatCuratorReport(report: CuratorReport): string {
 	const lines: string[] = [];
