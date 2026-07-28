@@ -9,11 +9,11 @@ importers:
   .:
     dependencies:
       '@anthropic-ai/sdk':
-        specifier: ^0.112.3
-        version: 0.112.4
+        specifier: ^0.115.0
+        version: 0.115.0
       '@linear/sdk':
-        specifier: ^88.2.0
-        version: 88.2.0(graphql@16.14.0)
+        specifier: ^88.3.0
+        version: 88.3.0(graphql@16.14.0)
       ajv:
         specifier: ^8.20.0
         version: 8.20.0
@@ -45,8 +45,8 @@ importers:
 
 packages:
 
-  '@anthropic-ai/sdk@0.112.4':
-    resolution: {integrity: sha512-7eXJJnrmBI5GMC6drrCiSkycVsT7crRZX3qv5HusLSm+qiILjmtqP7gf+UiT7ASu/7Gdj+Zfl4f2haV8wATKUg==}
+  '@anthropic-ai/sdk@0.115.0':
+    resolution: {integrity: sha512-BJrFIVyjNuU8lfDyIJTvlRYzgQg+zEl78BxE7fq8esULsGz9IRQvGtW5spq3tydmtjQb/GFdooKGdGsetpx+lQ==}
     hasBin: true
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
@@ -288,8 +288,8 @@ packages:
   '@jridgewell/sourcemap-codec@1.5.5':
     resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==}
 
-  '@linear/sdk@88.2.0':
-    resolution: {integrity: sha512-nHs4MSFnnGYQZ0zWFlmYKuMLbgewkIjQag78F31DOkdavbJnfRp+YYZxaYHNvYJLfLbzp36/BGoCtR6xSrMssA==}
+  '@linear/sdk@88.3.0':
+    resolution: {integrity: sha512-F3bTsXQBDZja/UT+whtKAzHNPk8zTwoxq2Zs5tgbbHQLC3kueMOyHKO/u2RAYjxCKu3XtqB3vV0/6P/EqO+pOw==}
     engines: {node: '>=18.x'}
 
   '@napi-rs/wasm-runtime@1.1.6':
@@ -898,7 +898,7 @@ packages:
 
 snapshots:
 
-  '@anthropic-ai/sdk@0.112.4':
+  '@anthropic-ai/sdk@0.115.0':
     dependencies:
       json-schema-to-ts: 3.1.1
       standardwebhooks: 1.0.0
@@ -1040,7 +1040,7 @@ snapshots:
 
   '@jridgewell/sourcemap-codec@1.5.5': {}
 
-  '@linear/sdk@88.2.0(graphql@16.14.0)':
+  '@linear/sdk@88.3.0(graphql@16.14.0)':
     dependencies:
       '@graphql-typed-document-node/core': 3.2.0(graphql@16.14.0)
     transitivePeerDependencies:
