@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.3](https://github.com/Elnora-AI/elnora-linear/compare/v2.2.2...v2.2.3) (2026-07-28)
+
+
+### Bug Fixes
+
+* **deps:** bump transitive fast-uri to 3.1.4 ([#100](https://github.com/Elnora-AI/elnora-linear/issues/100)) ([143c636](https://github.com/Elnora-AI/elnora-linear/commit/143c63645f511b50ddff9faafe66bd8a52425f8a))
+
 ## [2.2.2](https://github.com/Elnora-AI/elnora-linear/compare/v2.2.1...v2.2.2) (2026-07-28)
 
 
