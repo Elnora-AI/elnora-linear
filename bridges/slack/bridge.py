@@ -150,7 +150,11 @@ def _info(msg: str) -> None:
 
 
 def _warn(msg: str) -> None:
-    print(f"[warn] {msg}", flush=True)
+    # stderr, not stdout: every _warn site is a degraded outcome (a Slack call
+    # that failed, a DM that was not delivered, a CLI that exited non-zero).
+    # On stdout those lines land in the run log next to normal progress and
+    # are invisible to anything watching the error log.
+    print(f"[warn] {msg}", file=sys.stderr, flush=True)
 
 
 def _err(msg: str) -> None:
@@ -250,14 +254,23 @@ def _slack_post(client, channel: str, text: str, *, thread_ts: str | None = None
         return None
 
 
-def _slack_thread_replies(client, channel: str, parent_ts: str) -> list[dict]:
+def _slack_thread_replies(client, channel: str, parent_ts: str) -> list[dict] | None:
+    """Replies in a thread, excluding the parent message.
+
+    Returns `None` when the read FAILED and `[]` when it succeeded and nobody
+    has replied yet. The distinction is load-bearing: `[]` lets a question age
+    toward its timeout, and an expired question is deleted from
+    `pending_questions` and recorded in `processed_thread_keys`, which the
+    curator never re-asks. Collapsing a failed read into `[]` therefore turns
+    a Slack outage into permanent loss of a reply nobody ever read.
+    """
     try:
         res = client.conversations_replies(channel=channel, ts=parent_ts, limit=50)
         msgs = res.data.get("messages") or []
         return msgs[1:] if msgs else []
     except Exception as e:
-        _warn(f"conversations.replies failed: {e}")
-        return []
+        _err(f"conversations.replies failed for {channel}/{parent_ts}: {e}")
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -684,30 +697,48 @@ def cmd_resolve(*, dry_run: bool) -> int:
         timeout_s = QUESTION_TIMEOUT_DAYS * 86400
         payload: list[dict] = []
         timed_out: list[str] = []
+        unreadable: list[str] = []
 
         for k, post in list(posted.items()):
             if k not in pending_by_key:
                 # Upstream already removed this thread_key.
                 continue
             q = pending_by_key[k]
-            # Time out from when the DM was actually posted, not from when
-            # the curator staged the question — a backlog question staged
-            # weeks ago would otherwise be DM'd and instantly dropped.
-            try:
-                posted_at_unix = datetime.fromisoformat(
-                    (post.get("bridge_posted_at") or post["posted_at"]).replace("Z", "+00:00")
-                ).timestamp()
-            except (ValueError, KeyError, AttributeError, TypeError):
-                posted_at_unix = now_unix
-            if now_unix - posted_at_unix > timeout_s:
-                timed_out.append(k)
+
+            # Read BEFORE evaluating expiry. Dropping a question is
+            # irreversible (see `_remove_from_upstream`), so it may only
+            # happen on the strength of a successful read that showed no
+            # reply — never on a tick where Slack was unreachable and the
+            # only thing we know is that we know nothing.
+            if client is None:
+                _info(f"  no Slack client — cannot read {q.get('issue_id', '?')}; question retained")
+                continue
+            replies = _slack_thread_replies(client, post["dm_channel"], post["dm_ts"])
+            if replies is None:
+                unreadable.append(k)
+                _err(
+                    f"{q.get('issue_id', '?')}: thread read failed; question retained "
+                    "and not considered for timeout this tick"
+                )
                 continue
 
-            replies = _slack_thread_replies(client, post["dm_channel"], post["dm_ts"]) if client else []
             # Only count replies from the recipient (not the bot itself).
             replies = [r for r in replies if r.get("user") == post["recipient_user_id"]]
             if not replies:
+                # Confirmed: no reply. Time out from when the DM was actually
+                # posted, not from when the curator staged the question — a
+                # backlog question staged weeks ago would otherwise be DM'd
+                # and instantly dropped.
+                try:
+                    posted_at_unix = datetime.fromisoformat(
+                        (post.get("bridge_posted_at") or post["posted_at"]).replace("Z", "+00:00")
+                    ).timestamp()
+                except (ValueError, KeyError, AttributeError, TypeError):
+                    posted_at_unix = now_unix
+                if now_unix - posted_at_unix > timeout_s:
+                    timed_out.append(k)
                 continue
+
             payload.append({
                 "thread_key": k,
                 "issue_id": q["issue_id"],
@@ -726,9 +757,12 @@ def cmd_resolve(*, dry_run: bool) -> int:
         for k in timed_out:
             posted.pop(k, None)
             q = pending_by_key.get(k, {})
-            _info(
-                f"  timeout: {q.get('issue_id', '?')} — "
-                f"{QUESTION_TIMEOUT_DAYS} days without reply, dropping question silently"
+            # The question is gone for good after this — the curator will not
+            # re-ask a thread_key in processed_thread_keys — so say so on
+            # stderr rather than burying it in the run log.
+            _warn(
+                f"timeout: {q.get('issue_id', '?')} — "
+                f"{QUESTION_TIMEOUT_DAYS} days without reply, dropping question permanently"
             )
             upstream["pending_questions"] = [
                 pq for pq in upstream["pending_questions"] if pq["thread_key"] != k
@@ -798,8 +832,13 @@ def cmd_resolve(*, dry_run: bool) -> int:
         _info(
             f"resolve: {applied_count} applied, {skipped_count} skipped, "
             f"{followed_up_count} followed up, {len(timed_out)} timed out, "
-            f"{deferred} deferred"
+            f"{deferred} deferred, {len(unreadable)} unreadable"
         )
+        if unreadable:
+            # A tick that could not read part of the thread set did not do its
+            # job. Exiting 0 would tell the scheduler otherwise.
+            _err(f"{len(unreadable)} thread(s) could not be read this tick; questions retained")
+            return 5
         return 0
     finally:
         _release_upstream_lock(lock_fd)

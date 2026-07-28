@@ -101,6 +101,22 @@ elnora-linear curator-run                            # actually apply HIGH actio
 elnora-linear curator-run --source github-prs        # restrict to one signal source
 ```
 
+## Exit codes and monitoring
+
+`curator-run` exits **1** when the rule engine fails (bad or expired
+`ANTHROPIC_API_KEY`, network failure, request timeout) and prints
+`[error] curator rule engine failed: …` to stderr. Such a run collects
+signals and applies nothing, so it must not be recorded as a success.
+
+A failed signal source does not fail the run: sources are independent and
+best-effort, and the rule engine still sees what the healthy ones collected.
+Those appear as `[!!] <name> (<type>) — error: …` in the text report.
+
+If you monitor scheduled runs, watch the exit code rather than log patterns —
+a rule-engine error message is whatever the underlying client raised
+(`fetch failed`, `Request timed out.`, a raw API error body), and matching on
+its text will miss cases.
+
 ## Slack bridge
 
 The curator stages MEDIUM-tier questions in `curator-state.json` but does not post to Slack. The bundled `elnora-linear curator-slack-bridge` subcommand DMs assignees and applies their replies back to Linear. See `bridges/slack/README.md` for setup; this section covers scheduling it alongside the curator.
@@ -195,4 +211,4 @@ elnora-linear curator-slack-bridge post-pending                # only post; skip
 elnora-linear curator-slack-bridge resolve                     # only poll replies
 ```
 
-The bridge takes the same exclusive file lock as the curator on `curator-state.json`, so concurrent runs cannot race. Exit code 4 means the curator is still running — wait and retry. If you get `ModuleNotFoundError: slack_sdk`, the deps landed in a different Python than the wrapper resolves to — set `PYTHON_BIN=/path/to/python` in `~/.config/elnora-linear/.env` (the wrapper auto-loads it).
+The bridge takes the same exclusive file lock as the curator on `curator-state.json`, so concurrent runs cannot race. Exit code 4 means the curator is still running — wait and retry. Exit code 5 means one or more DM threads could not be read from Slack: those questions were retained rather than expired, and the next tick will retry them. If you get `ModuleNotFoundError: slack_sdk`, the deps landed in a different Python than the wrapper resolves to — set `PYTHON_BIN=/path/to/python` in `~/.config/elnora-linear/.env` (the wrapper auto-loads it).

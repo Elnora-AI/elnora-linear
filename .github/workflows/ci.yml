@@ -30,6 +30,19 @@ jobs:
       - run: pnpm build
       - run: pnpm test
 
+  bridge-tests:
+    name: Slack bridge (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      # bridge.py imports slack_sdk and anthropic lazily, so the tests need
+      # nothing but pytest.
+      - run: pip install pytest
+      - run: python -m pytest __tests__/bridges -q
+
   build:
     name: Build (${{ matrix.os }})
     needs: lint-and-test
