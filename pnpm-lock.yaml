@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@anthropic-ai/sdk':
-        specifier: ^0.112.3
-        version: 0.112.4
+        specifier: ^0.115.0
+        version: 0.115.0
       '@linear/sdk':
         specifier: ^88.2.0
         version: 88.2.0(graphql@16.14.0)
@@ -45,8 +45,8 @@ importers:
 
 packages:
 
-  '@anthropic-ai/sdk@0.112.4':
-    resolution: {integrity: sha512-7eXJJnrmBI5GMC6drrCiSkycVsT7crRZX3qv5HusLSm+qiILjmtqP7gf+UiT7ASu/7Gdj+Zfl4f2haV8wATKUg==}
+  '@anthropic-ai/sdk@0.115.0':
+    resolution: {integrity: sha512-BJrFIVyjNuU8lfDyIJTvlRYzgQg+zEl78BxE7fq8esULsGz9IRQvGtW5spq3tydmtjQb/GFdooKGdGsetpx+lQ==}
     hasBin: true
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
@@ -898,7 +898,7 @@ packages:
 
 snapshots:
 
-  '@anthropic-ai/sdk@0.112.4':
+  '@anthropic-ai/sdk@0.115.0':
     dependencies:
       json-schema-to-ts: 3.1.1
       standardwebhooks: 1.0.0
