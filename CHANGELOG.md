@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.2](https://github.com/Elnora-AI/elnora-linear/compare/v2.2.1...v2.2.2) (2026-07-28)
+
+
+### Bug Fixes
+
+* **curator:** fail loudly instead of exiting 0 on a broken run ([#98](https://github.com/Elnora-AI/elnora-linear/issues/98)) ([f696a4e](https://github.com/Elnora-AI/elnora-linear/commit/f696a4e42c91f2f6e6cdde4c4e86e515b6f63025))
+
 ## [2.2.1](https://github.com/Elnora-AI/elnora-linear/compare/v2.2.0...v2.2.1) (2026-07-15)
 
 
