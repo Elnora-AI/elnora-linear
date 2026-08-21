@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.4](https://github.com/Elnora-AI/elnora-linear/compare/v2.2.3...v2.2.4) (2026-08-21)
+
+
+### Bug Fixes
+
+* **issues:** stop bulk-ops reporting success for writes it silently dropped ([#113](https://github.com/Elnora-AI/elnora-linear/issues/113)) ([870b713](https://github.com/Elnora-AI/elnora-linear/commit/870b7136c8b5312eed03c03cc46b07921394c55b))
+
 ## [2.2.3](https://github.com/Elnora-AI/elnora-linear/compare/v2.2.2...v2.2.3) (2026-07-28)
 
 
