@@ -388,9 +388,14 @@ export async function batchMutations(
 			}
 		}
 		const docError = documentErrors.length > 0 ? documentErrors.join("; ") : null;
+		// Name the op that actually failed. Without the alias every surviving op in the
+		// batch reports the same sentence, so a 25-op batch says only that something,
+		// somewhere, went wrong.
 		const siblingError =
 			errorByAlias.size > 0
-				? `aborted: sibling op in same batch failed (${[...errorByAlias.values()].join("; ")})`
+				? `aborted: sibling op in same batch failed (${[...errorByAlias]
+						.map(([alias, msg]) => `${alias}: ${msg}`)
+						.join("; ")})`
 				: null;
 		for (const op of slice) {
 			const data = res.data?.[op.alias];

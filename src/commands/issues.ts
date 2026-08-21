@@ -90,6 +90,109 @@ export function resolveBulkOpTeamKey(
 	return defaultTeamKey;
 }
 
+/**
+ * Every key a given bulk-op kind actually reads.
+ *
+ * Anything outside this set used to be dropped in silence: the op still produced a
+ * mutation, Linear still answered `success`, and the caller was told a write had
+ * happened when it had not.
+ */
+export const BULK_OP_ALLOWED_KEYS: Record<string, readonly string[]> = {
+	create: [
+		"kind",
+		"title",
+		"team",
+		"description",
+		"priority",
+		"dueDate",
+		"project",
+		"labels",
+		"state",
+		"parent",
+		"assignee",
+		"skipProjectCheck",
+	],
+	update: [
+		"kind",
+		"id",
+		"team",
+		"title",
+		"state",
+		"parent",
+		"description",
+		"priority",
+		"assignee",
+		"project",
+		"dueDate",
+	],
+	relate: ["kind", "from", "to", "type"],
+	comment: ["kind", "issue", "id", "body"],
+	"label-add": ["kind", "issue", "label"],
+	"label-remove": ["kind", "issue", "label"],
+	archive: ["kind", "id"],
+};
+
+/** Reject unsupported keys before anything is sent. Unknown *kinds* are left to the op loop. */
+export function validateBulkOpKeys(opsList: Array<Record<string, unknown>>): void {
+	for (let i = 0; i < opsList.length; i++) {
+		const op = opsList[i];
+		const allowed = BULK_OP_ALLOWED_KEYS[String(op.kind)];
+		if (!allowed) continue;
+		const unknown = Object.keys(op).filter((k) => !allowed.includes(k));
+		if (unknown.length === 0) continue;
+		// `labels` on update is rejected on purpose rather than supported: Linear's
+		// IssueUpdateInput.labelIds REPLACES the label set, so a partial list would
+		// silently strip siblings. The atomic label ops exist for exactly this.
+		const hint =
+			String(op.kind) === "update" && unknown.includes("labels")
+				? 'Use the "label-add" / "label-remove" ops — bulk update cannot set labels without replacing the whole set.'
+				: `Supported keys for "${op.kind}": ${allowed.join(", ")}.`;
+		throw new ValidationError(
+			`Op #${i} (${op.kind}): unsupported key(s) ${unknown.map((k) => `"${k}"`).join(", ")}.`,
+			hint,
+		);
+	}
+}
+
+export interface BulkUpdateMaps {
+	idMap: Record<string, string>;
+	stateMap: Record<string, string>;
+	assigneeMap: Record<string, string>;
+	projectMap: Record<string, string>;
+}
+
+/**
+ * Build the IssueUpdateInput for a bulk-ops `update`.
+ *
+ * Throws when nothing resolved: an empty input still round-trips as `success`, so a
+ * silent no-op would be reported to the caller as a completed write.
+ */
+export function buildBulkUpdateInput(
+	op: Record<string, unknown>,
+	maps: BulkUpdateMaps,
+	teamKey: string,
+	opIndex: number,
+): Record<string, unknown> {
+	const input: Record<string, unknown> = {};
+	if (typeof op.state === "string") input.stateId = maps.stateMap[`${teamKey}:${op.state}`];
+	if (typeof op.parent === "string") input.parentId = maps.idMap[op.parent];
+	if (op.parent === null) input.parentId = null;
+	if (typeof op.description === "string") input.description = op.description;
+	if (typeof op.priority === "number") input.priority = op.priority;
+	if (typeof op.title === "string") input.title = op.title;
+	if (typeof op.assignee === "string") input.assigneeId = maps.assigneeMap[op.assignee];
+	if (op.assignee === null) input.assigneeId = null;
+	if (typeof op.project === "string") input.projectId = maps.projectMap[op.project];
+	if (typeof op.dueDate === "string") input.dueDate = op.dueDate;
+	if (Object.keys(input).length === 0) {
+		throw new ValidationError(
+			`Op #${opIndex} (update ${op.id}): nothing to update — no supported field was set.`,
+			`Supported keys for "update": ${BULK_OP_ALLOWED_KEYS.update.join(", ")}.`,
+		);
+	}
+	return input;
+}
+
 async function enforceTeamLabelPolicy(opts: {
 	client: LinearClient;
 	teamKey: string;
@@ -419,6 +522,7 @@ export function setupIssuesCommand(program: Command): void {
 		.option("--project <project>", "Move to project")
 		.option("--due-date <date>", "Due date (YYYY-MM-DD)")
 		.option("--team <team>", "Move to different team")
+		.option("--parent <parent>", "Re-parent under an issue (e.g. ENG-123), or 'none' to detach")
 		.option("--skip-label-check", "Bypass team label-policy validation (use only when intentionally violating policy)")
 		.option("--with-issue", "Return the full updated issue body (default: just identifier + confirmation)")
 		.action(
@@ -475,6 +579,18 @@ export function setupIssuesCommand(program: Command): void {
 						update.stateId = state.id;
 					} else {
 						throw new CliError(`Cannot resolve state "${opts.state}": issue has no team. Use --team to specify.`);
+					}
+				}
+
+				if (opts.parent) {
+					if (opts.parent.toLowerCase() === "none") {
+						update.parentId = null;
+					} else {
+						const parent = await findIssueByIdentifier(client, opts.parent);
+						if (parent.id === issue.id) {
+							throw new CliError(`Cannot parent ${issue.identifier} under itself.`);
+						}
+						update.parentId = parent.id;
 					}
 				}
 
@@ -819,6 +935,8 @@ export function setupIssuesCommand(program: Command): void {
 					);
 				}
 
+				validateBulkOpKeys(opsList);
+
 				const idSet = new Set<string>();
 				const stateNames = new Set<string>();
 				const labelNames = new Set<string>();
@@ -982,17 +1100,14 @@ export function setupIssuesCommand(program: Command): void {
 						});
 						plan.push({ alias: `op${i}`, kind: "create", title: op.title, input });
 					} else if (kind === "update") {
-						const input: Record<string, unknown> = {};
-						if (typeof op.state === "string") {
-							const teamKey = resolveBulkOpTeamKey(op, teamMap, defaultTeamKey);
-							input.stateId = stateMap[`${teamKey}:${op.state}`];
-						}
-						if (typeof op.parent === "string") input.parentId = idMap[op.parent];
-						if (op.parent === null) input.parentId = null;
-						if (typeof op.description === "string") input.description = op.description;
-						if (typeof op.priority === "number") input.priority = op.priority;
 						const id = idMap[op.id as string];
 						if (!id) throw new ValidationError(`Op #${i}: unknown issue ${op.id}`);
+						const input = buildBulkUpdateInput(
+							op,
+							{ idMap, stateMap, assigneeMap, projectMap },
+							resolveBulkOpTeamKey(op, teamMap, defaultTeamKey),
+							i,
+						);
 						mutations.push({
 							alias: `op${i}`,
 							field: "issueUpdate",
@@ -1021,8 +1136,14 @@ export function setupIssuesCommand(program: Command): void {
 						});
 						plan.push({ alias: `op${i}`, kind: "relate", from: op.from, to: op.to, type: rtype });
 					} else if (kind === "comment") {
-						const issueId = idMap[op.issue as string];
-						if (!issueId) throw new ValidationError(`Op #${i}: unknown issue ${op.issue}`);
+						// Accept `id` as an alias for `issue`: every other op that targets a single
+						// issue keys it as `id`, so callers reach for that first.
+						const target = (typeof op.issue === "string" ? op.issue : op.id) as string | undefined;
+						if (typeof target !== "string") {
+							throw new ValidationError(`Op #${i}: comment requires an issue — set "issue" (or "id").`);
+						}
+						const issueId = idMap[target];
+						if (!issueId) throw new ValidationError(`Op #${i}: unknown issue ${target}`);
 						if (typeof op.body !== "string") throw new ValidationError(`Op #${i}: comment requires body`);
 						mutations.push({
 							alias: `op${i}`,
@@ -1035,7 +1156,7 @@ export function setupIssuesCommand(program: Command): void {
 							},
 							selection: "success comment { id }",
 						});
-						plan.push({ alias: `op${i}`, kind: "comment", issue: op.issue });
+						plan.push({ alias: `op${i}`, kind: "comment", issue: target });
 					} else if (kind === "label-add" || kind === "label-remove") {
 						const issueId = idMap[op.issue as string];
 						const labelId = labelMap[op.label as string];

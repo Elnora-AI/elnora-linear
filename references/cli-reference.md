@@ -16,7 +16,7 @@ issues create "Title" --team "Team" [--description "md"] [--project "P"] \
   [--state "Todo"|"Backlog"] [--due-date "YYYY-MM-DD"] [--parent "ENG-123"]
 issues update ENG-123 [--title "T"] [--description "md"] [--state "S"] \
   [--assignee "name"] [--priority 0-4] [--labels "L1,L2"] [--project "P"] \
-  [--due-date "YYYY-MM-DD"] [--team "Team"]
+  [--due-date "YYYY-MM-DD"] [--team "Team"] [--parent "ENG-12"|"none"]
 
 # Comments
 comments create ENG-123 --body "text"
@@ -117,6 +117,29 @@ issues add-label ENG-123 "Type: feature"
 issues remove-label ENG-123 "Layer: frontend"
 issues batch-create <jsonFile|->  # JSON array; cap 50; --yes when N>=10; --dry-run previews the resolved plan. Each item takes friendly names (team, project, assignee, labels, state) OR raw IDs (teamId, projectId, assigneeId, labelIds, stateId) — names resolve like single-issue create. labels = string[] or "a,b". priority = number or string. parent = "ENG-12". PREFER THIS over a shell loop of single creates.
 issues batch-update <ids> <jsonPatchFile|->  # ids = comma-separated ENG-X or UUIDs
+issues bulk-ops <jsonFile|->  # JSON array of ops, batched into GraphQL mutations. --dry-run shows the RESOLVED plan.
+
+# bulk-ops op schema — every key each kind reads. An unsupported key is now a hard
+# error; it used to be dropped silently while the op still reported success.
+#   {"kind":"create",       title, team, description, priority, dueDate, project, labels, state, parent, assignee, skipProjectCheck}
+#   {"kind":"update",       id, team, title, state, parent, description, priority, assignee, project, dueDate}
+#   {"kind":"relate",       from, to, type}                 # type: related|blocks|duplicate|similar
+#   {"kind":"comment",      issue (or id), body}
+#   {"kind":"label-add",    issue, label}
+#   {"kind":"label-remove", issue, label}
+#   {"kind":"archive",      id}
+#
+# bulk-ops notes:
+# - `update` does NOT take `labels` — IssueUpdateInput.labelIds REPLACES the whole
+#   set, so a partial list would strip siblings. Use label-add / label-remove.
+# - `parent` takes an identifier ("ENG-12"), not a UUID; null detaches.
+# - `assignee` takes a name or email; null unassigns.
+# - An update that sets no supported field is rejected rather than sent as an
+#   empty mutation that Linear answers with `success`.
+# - Setting state to a duplicate state requires a duplicate RELATION to exist
+#   first — create it with `relations create <dup> <canonical> --type duplicate`.
+# - Batches abort together: if one op fails, siblings report `aborted: sibling op
+#   in same batch failed (opN: <reason>)`, naming the op that broke.
 
 # Comments resolve / unresolve (v2.2)
 comments resolve <commentId>
