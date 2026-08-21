@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { _internal, buildSnapshot } from "../../src/curator/snapshot.js";
+import {
+	_internal,
+	buildSnapshot,
+	DESCRIPTION_CRITERIA_CHARS,
+	DESCRIPTION_HEAD_CHARS,
+	summarizeDescription,
+} from "../../src/curator/snapshot.js";
 import type { BulkIssueNode } from "../../src/lib/bulk-graphql.js";
 
 function issue(id: string, overrides: Partial<BulkIssueNode> = {}): BulkIssueNode {
@@ -75,5 +81,51 @@ describe("_internal.groupSignals", () => {
 		]);
 		expect(grouped.get("ENG-1")?.length).toBe(1);
 		expect(grouped.get("_unattributed")?.length).toBe(1);
+	});
+});
+
+describe("summarizeDescription", () => {
+	it("returns short descriptions untouched", () => {
+		expect(summarizeDescription("short body")).toBe("short body");
+	});
+
+	// The regression this exists for. ELN-1255 was a 1,343-char description whose
+	// "## Done criteria" began at char 1,094: a flat slice(0, 600) meant the curator
+	// never saw a single criterion, so it asked a human instead of deciding.
+	it("keeps done criteria that fall outside the head window", () => {
+		const body = `${"problem statement. ".repeat(60)}\n## Done criteria\n* resolves in one search + one read\n* same file not read twice`;
+		expect(body.indexOf("## Done criteria")).toBeGreaterThan(DESCRIPTION_HEAD_CHARS);
+		const out = summarizeDescription(body);
+		expect(out).toContain("## Done criteria");
+		expect(out).toContain("same file not read twice");
+		expect(out).toContain("chars elided");
+	});
+
+	it("finds a bold criteria lead-in, not just a heading", () => {
+		const body = `${"context. ".repeat(120)}\n**Done criteria**\n* no file read more than once per request`;
+		expect(summarizeDescription(body)).toContain("no file read more than once per request");
+	});
+
+	it.each(["## Acceptance criteria", "## Done when", "## Definition of done"])("recognises %s", (heading) => {
+		const body = `${"filler. ".repeat(120)}\n${heading}\n* the bar to clear`;
+		expect(summarizeDescription(body)).toContain("the bar to clear");
+	});
+
+	it("falls back to the tail when no criteria section exists", () => {
+		const body = `${"a".repeat(700)}THE-VERY-END`;
+		const out = summarizeDescription(body);
+		expect(out).toContain("THE-VERY-END");
+		expect(out.startsWith("a".repeat(50))).toBe(true);
+	});
+
+	it("does not duplicate a criteria section already inside the head", () => {
+		const body = `## Done criteria\n* early bar\n${"tail filler. ".repeat(80)}`;
+		const out = summarizeDescription(body);
+		expect(out.match(/## Done criteria/g)?.length).toBe(1);
+	});
+
+	it("stays bounded", () => {
+		const body = `${"x".repeat(5000)}\n## Done criteria\n${"y".repeat(5000)}`;
+		expect(summarizeDescription(body).length).toBeLessThan(DESCRIPTION_HEAD_CHARS + DESCRIPTION_CRITERIA_CHARS + 100);
 	});
 });
