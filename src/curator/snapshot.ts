@@ -60,6 +60,51 @@ function untrusted(text: string): string {
 	return `<untrusted>${sanitized}</untrusted>`;
 }
 
+/**
+ * Headings that introduce the bar an issue has to clear. Matched as a markdown
+ * heading (`## Done criteria`) or a bold lead-in (`**Done criteria**`).
+ */
+const CRITERIA_HEADING =
+	/^[ \t]*(?:#{1,6}[ \t]*|\*\*)(done criteria|acceptance criteria|done when|definition of done|acceptance)\b/im;
+
+export const DESCRIPTION_HEAD_CHARS = 600;
+export const DESCRIPTION_CRITERIA_CHARS = 700;
+
+/** Per-signal render budget. Raised only for signals that carry a body excerpt. */
+export const SIGNAL_PAYLOAD_CHARS = 200;
+export const SIGNAL_PAYLOAD_CHARS_WITH_EXCERPT = 900;
+
+/**
+ * Reduce a description to what the curator actually needs to judge state.
+ *
+ * A flat `slice(0, 600)` kept the problem statement and dropped the acceptance
+ * bar, because done criteria are written last. ELN-1255 is the worked example:
+ * a 1,343-char description whose `## Done criteria` began at char 1,094, so the
+ * curator never saw a single criterion and had no option but to ask a human
+ * whether a merged PR had satisfied them.
+ *
+ * Keep the head, then keep the criteria section if there is one, else the tail.
+ */
+export function summarizeDescription(
+	description: string,
+	headChars = DESCRIPTION_HEAD_CHARS,
+	criteriaChars = DESCRIPTION_CRITERIA_CHARS,
+): string {
+	if (description.length <= headChars) return description;
+	const head = description.slice(0, headChars);
+	const rest = description.slice(headChars);
+	const match = rest.match(CRITERIA_HEADING);
+	// `match.index` is relative to `rest`; a criteria section already inside the
+	// head needs no second copy.
+	const tail =
+		match?.index !== undefined
+			? rest.slice(match.index, match.index + criteriaChars)
+			: rest.slice(-Math.min(criteriaChars, rest.length));
+	if (!tail) return head;
+	const elided = rest.length - tail.length;
+	return `${head}\n[... ${elided} chars elided ...]\n${tail}`;
+}
+
 function formatPendingQuestions(qs: PendingQuestion[]): string {
 	if (qs.length === 0) return "(none)";
 	return qs.map((q) => `- ${q.issue_id} [${q.thread_key}] posted ${q.posted_at}: ${q.question_text}`).join("\n");
@@ -89,14 +134,16 @@ function formatIssueBlock(issue: BulkIssueNode, signals: Signal[]): string {
 	lines.push(`- labels: [${issue.labels.nodes.map((l) => l.name).join(", ")}]`);
 	lines.push(`- updatedAt: ${issue.updatedAt}`);
 	if (issue.description) {
-		const truncated = issue.description.slice(0, 600);
-		const suffix = issue.description.length > 600 ? "..." : "";
-		lines.push(`- description: ${untrusted(`${truncated}${suffix}`)}`);
+		lines.push(`- description: ${untrusted(summarizeDescription(issue.description))}`);
 	}
 	if (signals.length > 0) {
 		lines.push("- signals:");
 		for (const sig of signals) {
-			const payload = JSON.stringify(sig.payload).slice(0, 200);
+			// 200 chars truncated a merged-PR signal to its repo and number, which
+			// says nothing about what the PR did. Signals that carry an excerpt get
+			// enough room for it to survive.
+			const cap = "bodyExcerpt" in sig.payload ? SIGNAL_PAYLOAD_CHARS_WITH_EXCERPT : SIGNAL_PAYLOAD_CHARS;
+			const payload = JSON.stringify(sig.payload).slice(0, cap);
 			lines.push(`  - [${sig.source}/${sig.type}] ${untrusted(payload)}`);
 		}
 	} else {

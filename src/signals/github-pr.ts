@@ -18,6 +18,24 @@ const runCmd = promisify(execFile);
 const PR_LIMIT_DEFAULT = 100;
 const MAX_BUFFER = 10_000_000;
 const TIMEOUT_MS = 30_000;
+export const BODY_EXCERPT_CHARS = 600;
+
+/**
+ * A bounded, single-line excerpt of a PR body.
+ *
+ * PR bodies routinely run to thousands of characters and there is one signal per
+ * referenced issue, so the whole body is not affordable. The opening summary is
+ * the part that says what changed, which is what the curator needs to weigh a
+ * merge against an issue's done criteria.
+ */
+export function excerptBody(body: string | null | undefined): string {
+	if (!body) return "";
+	const collapsed = body
+		.replace(/\r/g, "")
+		.replace(/\s*\n\s*/g, " ")
+		.trim();
+	return collapsed.length <= BODY_EXCERPT_CHARS ? collapsed : `${collapsed.slice(0, BODY_EXCERPT_CHARS)}…`;
+}
 
 export interface GithubPrConfig {
 	type: "github_pr";
@@ -109,6 +127,11 @@ export class GithubPrSource implements SignalSourceImpl {
 					mergedAt: pr.mergedAt,
 					author: pr.author?.login ?? null,
 					url: pr.url,
+					// Without this the curator learns only that *a* PR merged, never what it
+					// changed, so it cannot weigh a merge against an issue's done criteria and
+					// falls back to asking a human. The body is untrusted text and is wrapped
+					// as such by the snapshot before it reaches the model.
+					bodyExcerpt: excerptBody(pr.body),
 				};
 				if (ids.length === 0) {
 					signals.push({ source: this.config.name, type: this.config.type, payload, receivedAt });

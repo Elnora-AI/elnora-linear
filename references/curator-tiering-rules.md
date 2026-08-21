@@ -17,6 +17,14 @@ Any one of these fires the HIGH tier. The curator updates state via `elnora-line
 - **H5 — Customer milestone signal.** Issue is in `customer-onboarding`-style project AND a corresponding customer milestone signal (from `slack_messages` or `external_command`) confirms completion. → set state `Done`.
 - **H6 — Backlog rot.** Issue state is `Backlog` AND no activity (comments, edits, label changes) in 60+ days AND no labels AND no assignee. → set state `Canceled` with comment `Canceled by curator: 60d+ inactive, no signal of intent.`
 
+**Stated done criteria override H1 and H2.** When the description states done criteria (a `Done criteria`, `Acceptance criteria`, `Done when` or `Definition of done` section), weigh the PR evidence against those criteria before closing:
+
+- Criteria demonstrably met → HIGH as normal, and cite the criterion in the rationale comment.
+- Criteria demonstrably **not** met → do NOT fire HIGH. A PR referencing an issue is not a claim that it finished it; PRs routinely name every issue they touch. Report it, naming the criterion still outstanding.
+- Cannot tell from the evidence → MEDIUM, and put the specific unresolved criterion in the question instead of asking "is this done?".
+
+Worked example: PR #1864 named both ELN-1255 and ELN-1256. It satisfied ELN-1255 — the grep trace it fixed is the one in that issue — but not ELN-1256, whose criterion is "a file read once is never re-read", which needs a read cache the PR does not add. Closing both because both were named would have been wrong in one of the two.
+
 ## MEDIUM — ask in Slack (cap: 10 per run)
 
 Any one fires MEDIUM. The curator posts a top-level message in a configured channel (see `slack.json` `allowed_channels`) with `@mention` of the assignee — anyone allowed can reply in the thread.
