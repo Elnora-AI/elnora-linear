@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.5](https://github.com/Elnora-AI/elnora-linear/compare/v2.2.4...v2.2.5) (2026-08-21)
+
+
+### Bug Fixes
+
+* **curator:** let the curator see done criteria before it asks a human ([#115](https://github.com/Elnora-AI/elnora-linear/issues/115)) ([2dc23dd](https://github.com/Elnora-AI/elnora-linear/commit/2dc23ddc393c532d229e236b4edc7f69c53b8aa0))
+
 ## [2.2.4](https://github.com/Elnora-AI/elnora-linear/compare/v2.2.3...v2.2.4) (2026-08-21)
 
 
