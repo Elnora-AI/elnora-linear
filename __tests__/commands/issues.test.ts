@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
-
-import { buildBatchCreateInput, type FriendlyLookups, resolveBulkOpTeamKey } from "../../src/commands/issues.js";
+import {
+	buildBatchCreateInput,
+	buildBulkUpdateInput,
+	type FriendlyLookups,
+	resolveBulkOpTeamKey,
+	validateBulkOpKeys,
+} from "../../src/commands/issues.js";
+import type { ValidationError } from "../../src/utils/errors.js";
 
 describe("resolveBulkOpTeamKey", () => {
 	const teamMap = {
@@ -137,5 +143,103 @@ describe("buildBatchCreateInput", () => {
 
 	it("throws on an unknown state for the resolved team", () => {
 		expect(() => buildBatchCreateInput({ title: "x", team: "ENG", state: "Shipped" }, 0, lookups)).toThrow(/Shipped/);
+	});
+});
+
+describe("validateBulkOpKeys", () => {
+	it("accepts ops that only use supported keys", () => {
+		expect(() =>
+			validateBulkOpKeys([
+				{ kind: "update", id: "ENG-1", state: "Done", priority: 1 },
+				{ kind: "create", title: "x", team: "ENG", assignee: "Risto" },
+				{ kind: "comment", issue: "ENG-2", body: "hi" },
+				{ kind: "relate", from: "ENG-1", to: "ENG-2", type: "duplicate" },
+				{ kind: "archive", id: "ENG-3" },
+			]),
+		).not.toThrow();
+	});
+
+	// The regression this whole change exists for: `assignee` was silently dropped
+	// from an update, the mutation still ran with an empty input, and the CLI
+	// reported succeeded:1 for a write that never happened.
+	it("rejects a key the update op does not read, instead of dropping it", () => {
+		expect(() => validateBulkOpKeys([{ kind: "update", id: "ENG-1", assigneeId: "uuid" }])).toThrow(
+			/unsupported key\(s\) "assigneeId"/,
+		);
+	});
+
+	it("rejects parentId, which callers reach for before parent", () => {
+		expect(() => validateBulkOpKeys([{ kind: "update", id: "ENG-1", parentId: "uuid" }])).toThrow(
+			/unsupported key\(s\) "parentId"/,
+		);
+	});
+
+	it("names the offending op index", () => {
+		expect(() =>
+			validateBulkOpKeys([
+				{ kind: "update", id: "ENG-1", state: "Done" },
+				{ kind: "update", id: "ENG-2", nope: 1 },
+			]),
+		).toThrow(/Op #1 \(update\)/);
+	});
+
+	it("points labels-on-update at the atomic label ops", () => {
+		try {
+			validateBulkOpKeys([{ kind: "update", id: "ENG-1", labels: ["Type: bug"] }]);
+			throw new Error("expected validateBulkOpKeys to throw");
+		} catch (e) {
+			expect((e as ValidationError).message).toMatch(/unsupported key\(s\) "labels"/);
+			// The steer lives in `suggestion` so agents get it in the structured error.
+			expect((e as ValidationError).suggestion).toMatch(/label-add/);
+		}
+	});
+
+	it("leaves an unknown kind to the op loop", () => {
+		expect(() => validateBulkOpKeys([{ kind: "teleport", id: "ENG-1" }])).not.toThrow();
+	});
+});
+
+describe("buildBulkUpdateInput", () => {
+	const maps = {
+		idMap: { "ENG-1": "uuid-1", "ENG-9": "uuid-9" },
+		stateMap: { "ENG:Done": "state-done" },
+		assigneeMap: { "Risto Jamul": "user-risto" },
+		projectMap: { Platform: "proj-1" },
+	};
+
+	it("resolves assignee, which the update branch used to ignore entirely", () => {
+		expect(buildBulkUpdateInput({ kind: "update", id: "ENG-1", assignee: "Risto Jamul" }, maps, "ENG", 0)).toEqual({
+			assigneeId: "user-risto",
+		});
+	});
+
+	it("still resolves the fields it always supported", () => {
+		expect(buildBulkUpdateInput({ kind: "update", id: "ENG-1", state: "Done", priority: 2 }, maps, "ENG", 0)).toEqual({
+			stateId: "state-done",
+			priority: 2,
+		});
+	});
+
+	it("resolves parent by identifier and detaches on null", () => {
+		expect(buildBulkUpdateInput({ kind: "update", id: "ENG-1", parent: "ENG-9" }, maps, "ENG", 0)).toEqual({
+			parentId: "uuid-9",
+		});
+		expect(buildBulkUpdateInput({ kind: "update", id: "ENG-1", parent: null }, maps, "ENG", 0)).toEqual({
+			parentId: null,
+		});
+	});
+
+	it("unassigns on null rather than skipping the field", () => {
+		expect(buildBulkUpdateInput({ kind: "update", id: "ENG-1", assignee: null }, maps, "ENG", 0)).toEqual({
+			assigneeId: null,
+		});
+	});
+
+	// An empty input is accepted by Linear and answered with success, so a no-op
+	// update would be reported to the caller as a completed write.
+	it("refuses an update that resolved to nothing", () => {
+		expect(() => buildBulkUpdateInput({ kind: "update", id: "ENG-1" }, maps, "ENG", 3)).toThrow(
+			/Op #3 \(update ENG-1\): nothing to update/,
+		);
 	});
 });

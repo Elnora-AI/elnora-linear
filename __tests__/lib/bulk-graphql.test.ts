@@ -396,6 +396,27 @@ describe("formatBulkIssue", () => {
 });
 
 describe("batchMutations", () => {
+	// A 25-op batch used to give every survivor the same sentence, so nothing said
+	// which op actually broke.
+	it("names the failing alias in the sibling-abort message", async () => {
+		const fetchMock = vi.fn(async () =>
+			jsonResponse({
+				data: { op_0: null, op_1: null },
+				errors: [{ message: "missing duplicate relation", path: ["op_1"] }],
+			}),
+		);
+		setFetchForTesting(fetchMock as unknown as typeof fetch);
+		const results = await batchMutations([
+			{ alias: "op_0", field: "issueUpdate", vars: { id: { type: "String!", value: "abc" } } },
+			{ alias: "op_1", field: "issueUpdate", vars: { id: { type: "String!", value: "def" } } },
+		]);
+		const survivor = results.find((r) => r.alias === "op_0");
+		expect(survivor?.ok).toBe(false);
+		expect(survivor?.error).toContain("op_1: missing duplicate relation");
+		const failed = results.find((r) => r.alias === "op_1");
+		expect(failed?.error).toContain("missing duplicate relation");
+	});
+
 	it("builds aliased multi-mutation document with scoped variables", async () => {
 		const fetchMock = vi.fn(async () =>
 			jsonResponse({
