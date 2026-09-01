@@ -12,8 +12,8 @@ importers:
         specifier: ^0.120.0
         version: 0.120.0
       '@linear/sdk':
-        specifier: ^90.0.0
-        version: 90.0.0(graphql@16.14.0)
+        specifier: ^92.0.0
+        version: 92.0.0(graphql@16.14.0)
       ajv:
         specifier: ^8.20.0
         version: 8.20.0
@@ -279,8 +279,8 @@ packages:
   '@jridgewell/sourcemap-codec@1.5.5':
     resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==}
 
-  '@linear/sdk@90.0.0':
-    resolution: {integrity: sha512-sSM5V7m2ukm4eZn0qU5jjp3IASmuPis0GPpHKbN1aPrCWJojQUvIP8NeehQiWFizWGCBaHDC+3kpuyDG1rDbnQ==}
+  '@linear/sdk@92.0.0':
+    resolution: {integrity: sha512-MDqvUcgkvVNg//ivlJx2a4d9bjELrMo2h5qK0xc6hYABTV98oAOsZkepd9RV8n5j1rqfA5vJsQNeIC5en40TkQ==}
     engines: {node: '>=18.x'}
 
   '@oxc-project/types@0.144.0':
@@ -998,7 +998,7 @@ snapshots:
 
   '@jridgewell/sourcemap-codec@1.5.5': {}
 
-  '@linear/sdk@90.0.0(graphql@16.14.0)':
+  '@linear/sdk@92.0.0(graphql@16.14.0)':
     dependencies:
       '@graphql-typed-document-node/core': 3.2.0(graphql@16.14.0)
     transitivePeerDependencies:
