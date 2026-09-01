@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.6](https://github.com/Elnora-AI/elnora-linear/compare/v2.2.5...v2.2.6) (2026-09-01)
+
+
+### Bug Fixes
+
+* **deps:** bump fast-uri to 3.1.6 to close GHSA-7p8r-x3mc-p8w7 ([#127](https://github.com/Elnora-AI/elnora-linear/issues/127)) ([211cd73](https://github.com/Elnora-AI/elnora-linear/commit/211cd73f85c0736fc8698a2f601d878f7819c053))
+
 ## [2.2.5](https://github.com/Elnora-AI/elnora-linear/compare/v2.2.4...v2.2.5) (2026-08-21)
 
 
