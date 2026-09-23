@@ -3,7 +3,7 @@
 // Thin Node-side wrapper that locates the bundled Python bridge at
 // `bridges/slack/bridge.py` and spawns it with the user's args. The CLI
 // hydrates ~/.config/elnora-linear/.env at startup (see cli.ts) so by the
-// time we spawn python, SLACK_BOT_TOKEN, ANTHROPIC_API_KEY,
+// time we spawn python, SLACK_BOT_TOKEN, OPENROUTER_API_KEY,
 // LINEAR_REFERENCES_DIR, etc. are already in process.env and inherited by
 // the child via stdio: "inherit".
 //
@@ -14,8 +14,8 @@
 //      `import.meta.url` and the user just types `elnora-linear curator-slack-bridge tick`.
 //   2. It makes the subcommand discoverable via `elnora-linear --help`.
 //
-// The bridge still requires `pip install slack-sdk anthropic`. If those
-// imports fail inside the bridge, it prints a clear error and exits non-zero
+// The bridge still requires `pip install slack-sdk`. If that
+// import fails inside the bridge, it prints a clear error and exits non-zero
 // — we forward that exit code as our own.
 
 import { spawn } from "node:child_process";
@@ -100,7 +100,7 @@ export function setupCuratorSlackBridgeCommand(program: Command): void {
 		.command("curator-slack-bridge <mode>")
 		.description(
 			"Run the bundled Slack bridge (Python). Modes: post-pending | resolve | tick. " +
-				"Requires `pip install slack-sdk anthropic` and SLACK_BOT_TOKEN + ANTHROPIC_API_KEY in env (or ~/.config/elnora-linear/.env). " +
+				"Requires `pip install slack-sdk` and SLACK_BOT_TOKEN + OPENROUTER_API_KEY in env (or ~/.config/elnora-linear/.env). " +
 				"See bridges/slack/README.md.",
 		)
 		.option("--dry-run", "Log intended actions without posting to Slack or mutating Linear")

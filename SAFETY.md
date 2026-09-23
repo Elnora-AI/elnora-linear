@@ -43,6 +43,7 @@ Required-label policies (e.g. each issue on a team must have a `Type:` and `Laye
 `elnora-linear curator-run` is bounded:
 
 - HIGH-tier auto-actions cap at **20 per run** (`MAX_MUTATIONS` in `src/curator/dispatch.ts`).
+- A HIGH action auto-applies only when TypeSafe Jev (via OpenRouter, `OPENROUTER_API_KEY`) reads its cited evidence as `done` with confidence >= 0.95 (`HIGH_CONFIDENCE`). Otherwise, including when Jev is down or its answer fails validation, it drops to MEDIUM and asks a person.
 - MEDIUM-tier queued questions cap at **10 per run** (`MAX_MEDIUM_QUEUED`).
 - Every applied action is appended to `~/.config/elnora-linear/state/curator-report.jsonl` for audit.
 - Re-asking or re-applying the same action within **14 days** is debounced via stable thread keys.

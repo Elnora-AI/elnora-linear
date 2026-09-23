@@ -156,7 +156,7 @@ Save as `~/Library/LaunchAgents/com.elnora-linear.bridge.plist`, then `launchctl
 </plist>
 ```
 
-Repeat the three `<dict>` blocks for weekdays 2–5 the same way the curator example above does. The wrapper auto-loads `~/.config/elnora-linear/.env`, so `SLACK_BOT_TOKEN`, `ANTHROPIC_API_KEY`, and `PYTHON_BIN` come along without any `EnvironmentVariables` block in the plist.
+Repeat the three `<dict>` blocks for weekdays 2–5 the same way the curator example above does. The wrapper auto-loads `~/.config/elnora-linear/.env`, so `SLACK_BOT_TOKEN`, `OPENROUTER_API_KEY`, and `PYTHON_BIN` come along without any `EnvironmentVariables` block in the plist.
 
 A `bridges/slack/launchd.example.plist` ships in the package as an alternative that spawns `bridge.py` directly. Use it only if you specifically want to bypass the CLI wrapper — otherwise the form above is simpler.
 
