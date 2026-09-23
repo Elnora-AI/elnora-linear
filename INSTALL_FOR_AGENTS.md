@@ -164,28 +164,41 @@ user the minimum questions to populate it, write the result, and validate
 with `sync verify`. Do not write all four in one shot — confirm each before
 moving on.
 
-### 4-pre. `ANTHROPIC_API_KEY` — the LLM that proposes Linear actions
+### 4-pre. LLM key — the model that proposes Linear actions
 
-The curator collects signals, hands them to Claude to propose state changes,
-and dispatches the safe ones. Without `ANTHROPIC_API_KEY` the curator silently
+The curator collects signals, hands them to an LLM to propose state changes,
+and dispatches the safe ones. It takes either key:
+
+- `ANTHROPIC_API_KEY` — calls Anthropic directly (default model
+  `claude-sonnet-4-6`).
+- `OPENROUTER_API_KEY` — calls the same models through OpenRouter (default
+  model `anthropic/claude-sonnet-5`). The Jev check before a HIGH action
+  auto-applies already needs this key, so a user who has it needs nothing
+  else. When both keys are set, OpenRouter is used.
+
+`LINEAR_CURATOR_MODEL` overrides the model on either path. Without either key the curator silently
 drops into `--collect-only` diagnostic mode (no LLM call, no mutations) — the
 user will wonder for days why HIGH-tier actions aren't applying. Collect it
 now, before walking the file-config steps.
 
 Tell the user, verbatim:
 
-> The curator uses Claude to read your signals and propose Linear changes.
-> I need an Anthropic API key. Open https://console.anthropic.com/settings/keys
-> in your browser, click **Create Key**, copy the value, and paste it here.
-> The key starts with `sk-ant-`.
+> The curator uses an LLM to read your signals and propose Linear changes.
+> I need an Anthropic API key (https://console.anthropic.com/settings/keys,
+> starts with `sk-ant-`) or an OpenRouter API key
+> (https://openrouter.ai/keys, starts with `sk-or-`). Which do you have?
+> Create one, copy the value, and paste it here.
+
+If the user already set `OPENROUTER_API_KEY` for Jev, skip this step: the
+curator uses that key.
 
 **Offer to drive the browser (if available).** As in Step 2, if a
 browser-automation MCP such as `chrome-devtools` is connected (its
-`mcp__chrome-devtools__*` tools are loaded), offer to open the Anthropic
-console keys page and run the **Create Key** flow in the user's own Chrome
+`mcp__chrome-devtools__*` tools are loaded), offer to open the keys
+page of the provider they chose and run its create-key flow in the user's own Chrome
 rather than making them click through: "I can create this key for you in
 your browser if you'd prefer." If they accept, drive it via the
-`mcp__chrome-devtools__*` tools and read the `sk-ant-…` value straight into
+`mcp__chrome-devtools__*` tools and read the key value straight into
 the steps below. Keep it an offer — fall back to the verbatim instruction
 above if the MCP isn't connected or the user declines.
 
@@ -194,15 +207,17 @@ file the Linear key lives in (the CLI auto-loads that file on startup, so the
 key survives the next shell):
 
 ```sh
-export ANTHROPIC_API_KEY="<paste>"
+KEY_NAME=ANTHROPIC_API_KEY   # or OPENROUTER_API_KEY for an sk-or- key
+KEY_VALUE="<paste>"
 umask 077
-printf 'ANTHROPIC_API_KEY=%s\n' "$ANTHROPIC_API_KEY" >> ~/.config/elnora-linear/.env
+printf '%s=%s\n' "$KEY_NAME" "$KEY_VALUE" >> ~/.config/elnora-linear/.env
 chmod 600 ~/.config/elnora-linear/.env
 ```
 
 Gates:
-- The value must start with `sk-ant-`. If it doesn't, ask the user to paste
-  again — they may have grabbed the wrong field.
+- The value must start with `sk-ant-` (Anthropic) or `sk-or-` (OpenRouter),
+  matching `KEY_NAME`. If it doesn't, ask the user to paste again — they may
+  have grabbed the wrong field.
 - `stat` on `~/.config/elnora-linear/.env` must still report mode `600` after
   the append. Re-`chmod 600` if not.
 - If the user refuses (e.g. "I'll add this later"), note loudly that the
@@ -314,7 +329,7 @@ Walk substeps in order — confirm each before moving on:
    `#name`). Collect one ID per channel.
 
 7. **Persist the token** to the env file alongside `LINEAR_API_KEY` and
-   `ANTHROPIC_API_KEY` (the CLI auto-loads this file at startup, so the
+   the LLM key (the CLI auto-loads this file at startup, so the
    token survives the next shell):
 
    ```sh
@@ -560,11 +575,11 @@ Do these in order. Confirm each before the next.
    clickable links; if `fallback_dm_user` is unset, the first entry of
    `allowed_dm_users` is used.
 
-5. **`ANTHROPIC_API_KEY` reminder.** The bridge uses Claude to interpret
-   user replies in `resolve` mode. Step 4-pre already collected it for
-   the curator; the bridge reads the same env var from the same `.env`
-   file. If the user refused to set it in Step 4-pre, flag that the
-   bridge will degrade to a keyword-only fallback (worse but functional).
+5. **`OPENROUTER_API_KEY` reminder.** The bridge judges user replies in
+   `resolve` mode with TypeSafe Jev, which runs through OpenRouter, so it
+   needs `OPENROUTER_API_KEY` in the same `.env` file whichever key the
+   curator uses. Without it, replies stay unjudged and are retried next
+   tick; nothing in Linear changes.
 
 6. **Dry-run smoke test.** Confirm the bridge can load its config
    before scheduling it:
@@ -577,7 +592,7 @@ Do these in order. Confirm each before the next.
    `python3` (or `$PYTHON_BIN` from the `.env` file if substep 1 set it).
 
    Gate: exit 0 and the log confirms it loaded `slack.json` + `users.json`
-   (and reports that `SLACK_BOT_TOKEN` + `ANTHROPIC_API_KEY` are set).
+   (and reports that `SLACK_BOT_TOKEN` + `OPENROUTER_API_KEY` are set).
    The bridge's upstream-state file (`curator-state.json`) does NOT need
    to exist yet — the bridge treats a missing state as "no pending
    questions" and the dry-run exits cleanly. Step 5's `curator-run` will
@@ -633,7 +648,7 @@ Gates:
     source warns `has no local_path (or path does not exist)` for a repo
     you populated, the path in `repos.json` is wrong or the clone moved —
     fix it before declaring done.
-  - If the user provided `ANTHROPIC_API_KEY` in Step 4-pre, also run once
+  - If the user provided an LLM key in Step 4-pre, also run once
     WITHOUT `--collect-only`:
 
     ```sh
@@ -641,7 +656,7 @@ Gates:
     ```
 
     Gate: the report's `pipeline.ranLlm` field is `true`. If it reports
-    `skippedReason: "ANTHROPIC_API_KEY not set"`, the env file didn't load
+    `skippedReason: "neither OPENROUTER_API_KEY nor ANTHROPIC_API_KEY set"`, the env file didn't load
     — confirm the key is on its own line in `~/.config/elnora-linear/.env`
     and re-run.
 
@@ -689,9 +704,9 @@ finish it before reporting done.
    Step 4 reports `status: "populated"`, and
    `elnora-linear curator-run --collect-only` exits 0 with no
    `warning:` payloads for sources the user enabled.
-7. If the user provided `ANTHROPIC_API_KEY` in Step 4-pre: a one-off
+7. If the user provided an LLM key in Step 4-pre: a one-off
    `elnora-linear curator-run --dry-run` report shows
-   `pipeline.ranLlm: true` (not `skippedReason: "ANTHROPIC_API_KEY not set"`).
+   `pipeline.ranLlm: true` (not `skippedReason: "neither OPENROUTER_API_KEY nor ANTHROPIC_API_KEY set"`).
 8. If the user populated `repos.json`: `gh auth status` exits 0 in the
    same shell that will run the curator, AND every entry with a
    `local_path` points at a real `.git` working tree.

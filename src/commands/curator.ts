@@ -1,8 +1,9 @@
 // `elnora-linear curator-run` — collect signals, build a snapshot, call the
 // LLM rule engine, dispatch HIGH/MEDIUM/LOW actions per tier.
 //
-// Without ANTHROPIC_API_KEY (or with --collect-only), the curator stays in
-// diagnostic mode and just reports collected signals. With the key set the
+// Without OPENROUTER_API_KEY or ANTHROPIC_API_KEY (or with --collect-only), the
+// curator stays in diagnostic mode and just reports collected signals. With a
+// key set the
 // full pipeline runs:
 //   1. Collect signals from every enabled source.
 //   2. List open issues for curator-active teams via bulk-graphql.
@@ -19,6 +20,7 @@ import {
 	type DispatchResult,
 	dispatchActions,
 	loadState,
+	resolveLlmProvider,
 	saveState,
 } from "../curator/index.js";
 import { buildSnapshot } from "../curator/snapshot.js";
@@ -31,7 +33,7 @@ export interface CuratorOptions {
 	source?: string;
 	referencesDir?: string;
 	output: OutputMode;
-	/** Skip the LLM phase even if ANTHROPIC_API_KEY is set. */
+	/** Skip the LLM phase even if an LLM key is set. */
 	collectOnly?: boolean;
 	/** Stage HIGH actions in the report but do not call the Linear API. */
 	dryRun?: boolean;
@@ -106,8 +108,8 @@ export async function runCurator(opts: CuratorOptions): Promise<CuratorReport> {
 
 function shouldRunLlm(opts: CuratorOptions): { run: true } | { run: false; reason: string } {
 	if (opts.collectOnly) return { run: false, reason: "--collect-only passed" };
-	if (!process.env.ANTHROPIC_API_KEY) {
-		return { run: false, reason: "ANTHROPIC_API_KEY not set" };
+	if (!resolveLlmProvider()) {
+		return { run: false, reason: "neither OPENROUTER_API_KEY nor ANTHROPIC_API_KEY set" };
 	}
 	return { run: true };
 }
