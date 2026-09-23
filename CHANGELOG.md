@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.0](https://github.com/Elnora-AI/elnora-linear/compare/v2.2.7...v2.3.0) (2026-09-23)
+
+
+### Features
+
+* **curator:** run the rule engine through OpenRouter when OPENROUTER_API_KEY is set ([#149](https://github.com/Elnora-AI/elnora-linear/issues/149)) ([3655f1e](https://github.com/Elnora-AI/elnora-linear/commit/3655f1e2ba4a2640468dba35da604aa5bdd292a1))
+
 ## [2.2.7](https://github.com/Elnora-AI/elnora-linear/compare/v2.2.6...v2.2.7) (2026-09-23)
 
 
