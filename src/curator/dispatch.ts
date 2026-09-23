@@ -1,6 +1,9 @@
 // Curator action dispatcher.
 //
-// HIGH actions auto-apply (state change + rationale comment) up to MAX_MUTATIONS.
+// HIGH actions auto-apply (state change + rationale comment) up to MAX_MUTATIONS,
+// but only after TypeSafe Jev confirms the cited evidence at >= HIGH_CONFIDENCE.
+// A HIGH that Jev does not confirm (or cannot judge) drops to MEDIUM and asks a
+// person instead.
 // MEDIUM actions queue as pending questions in the state file — the Slack
 // integration (or a bot) is responsible for actually posting them; the
 // dispatcher just stages the question + sets the debounce key.
@@ -11,11 +14,14 @@
 import type { LinearClient } from "@linear/sdk";
 import { resolveStateId } from "../lib/bulk-graphql.js";
 import { withRateLimit } from "../utils/rate-limit.js";
+import { jevChoice } from "./jev.js";
 import type { CuratorAction, CuratorHighAction, CuratorMediumAction } from "./llm.js";
 import { appendReportLine, type CuratorState, debounceKey } from "./state.js";
 
 export const MAX_MUTATIONS = 20;
 export const MAX_MEDIUM_QUEUED = 10;
+/** Jev answers at >= 0.9 are right about 99% of the time; an unattended state change takes 0.95. */
+export const HIGH_CONFIDENCE = 0.95;
 
 export interface DispatchOptions {
 	dryRun?: boolean;
@@ -25,6 +31,8 @@ export interface DispatchOptions {
 	now?: Date;
 	/** Test hook: override the actual Linear mutation path. */
 	applyHigh?: (client: LinearClient, action: CuratorHighAction) => Promise<{ ok: true } | { ok: false; error: string }>;
+	/** Test hook: override the Jev check that a HIGH action must pass to auto-apply. */
+	confirmHigh?: (action: CuratorHighAction) => Promise<boolean>;
 }
 
 export interface DispatchResult {
@@ -56,6 +64,43 @@ function isDebounced(state: CuratorState, action: CuratorAction, _now: Date): bo
 		return true;
 	}
 	return false;
+}
+
+/**
+ * Ask Jev whether the cited evidence shows the issue has reached the target
+ * state. True only for a confident "done" from a Jev model; any failure is false.
+ */
+export async function confirmHighWithJev(action: CuratorHighAction): Promise<boolean> {
+	const to = action.to_state;
+	const state = [
+		`Linear issue ${action.issue_id}, currently "${action.from_state}".`,
+		`Rationale: ${action.rationale}`,
+		"Signals cited:",
+		...(action.signals_cited ?? []).map((s) => `- ${s}`),
+	].join("\n");
+	try {
+		const answer = await jevChoice(state, `Given this evidence, has the issue really reached "${to}"?`, {
+			done: `The evidence shows the issue has reached "${to}", so moving it there is right.`,
+			not_done: `The evidence shows the issue has not reached "${to}" yet.`,
+			unclear: "The evidence is too thin or mixed to tell.",
+		});
+		return answer.choice === "done" && answer.confidence >= HIGH_CONFIDENCE && answer.model.startsWith("typesafe/jev-");
+	} catch {
+		return false;
+	}
+}
+
+function downgradeToMedium(action: CuratorHighAction): CuratorMediumAction {
+	return {
+		issue_id: action.issue_id,
+		tier: "MEDIUM",
+		rule: action.rule,
+		rationale: action.rationale,
+		decision: "ask_in_slack",
+		proposed_action: { type: "set_state", from: action.from_state, to: action.to_state },
+		question_text: `Move from ${action.from_state} to ${action.to_state}? ${action.rationale}`,
+		signals_cited: action.signals_cited ?? [],
+	};
 }
 
 async function applyHighAction(
@@ -96,9 +141,21 @@ export async function dispatchActions(
 	const maxMedium = opts.maxMedium ?? MAX_MEDIUM_QUEUED;
 	const result: DispatchResult = { applied: [], queued: [], reported: [], skipped: [] };
 
+	// HIGH actions Jev does not confirm become questions. Debounced ones are
+	// left alone so the loop below still reports them as debounced.
+	const confirm = opts.confirmHigh ?? confirmHighWithJev;
+	const gated: CuratorAction[] = [];
+	for (const action of actions) {
+		if (action.tier === "HIGH" && !isDebounced(state, action, now) && !(await confirm(action))) {
+			gated.push(downgradeToMedium(action));
+		} else {
+			gated.push(action);
+		}
+	}
+
 	let highCount = 0;
 	let mediumCount = 0;
-	for (const action of actions) {
+	for (const action of gated) {
 		if (isDebounced(state, action, now)) {
 			result.skipped.push({ issue_id: action.issue_id, rule: action.rule, reason: "debounced" });
 			continue;

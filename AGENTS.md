@@ -48,7 +48,7 @@ For a guided multi-step install (verify → key → sync → smoke-test), point 
 
 ## Safety
 
-Soft-delete by default. Destructive ops (`bulk` apply, permanent delete) require `--yes` typed by a human. Curator HIGH-tier auto-applies capped at 20/run, debounced 14 days per `{issue, from, to}`. Full guarantees: [SAFETY.md](SAFETY.md).
+Soft-delete by default. Destructive ops (`bulk` apply, permanent delete) require `--yes` typed by a human. Curator HIGH-tier auto-applies only when TypeSafe Jev confirms the evidence at >= 0.95 (else it asks a person), capped at 20/run, debounced 14 days per `{issue, from, to}`. Full guarantees: [SAFETY.md](SAFETY.md).
 
 ## Claude Code
 
