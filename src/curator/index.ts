@@ -15,6 +15,7 @@ export {
 	callCuratorLlm,
 	loadCuratorSystemPrompt,
 	parseActionsJson,
+	resolveLlmProvider,
 } from "./llm.js";
 export { buildSnapshot, type PendingQuestion, type SnapshotInput } from "./snapshot.js";
 export {

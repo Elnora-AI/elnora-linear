@@ -118,7 +118,7 @@ A router skill (`linear-workspace`) dispatches to the right agent or command fro
 
 (`mcp_tool` is reserved in the schema for a future release.)
 
-Every applied action is appended to `~/.config/elnora-linear/state/curator-report.jsonl`. Without `ANTHROPIC_API_KEY` (or with `--collect-only`), the curator runs in diagnostic mode. Recurring schedule: see [`docs/scheduling.md`](docs/scheduling.md).
+Every applied action is appended to `~/.config/elnora-linear/state/curator-report.jsonl`. Without `OPENROUTER_API_KEY` or `ANTHROPIC_API_KEY` (or with `--collect-only`), the curator runs in diagnostic mode. Recurring schedule: see [`docs/scheduling.md`](docs/scheduling.md).
 
 ---
 
@@ -145,7 +145,7 @@ Full details in [SAFETY.md](SAFETY.md).
 
 | Curator (opt-in per signal source) | |
 |---|---|
-| `ANTHROPIC_API_KEY` | LLM dispatch — without it the curator runs in `--collect-only` diagnostic mode |
+| `ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY` | LLM dispatch, through Anthropic directly or through OpenRouter (OpenRouter wins when both are set; `LINEAR_CURATOR_MODEL` overrides the model) — without either the curator runs in `--collect-only` diagnostic mode |
 | `OPENROUTER_API_KEY` | TypeSafe Jev check before a HIGH action auto-applies — without it every HIGH action is asked in Slack as MEDIUM instead |
 | `gh` CLI, authenticated | `github_pr` signal source |
 | `git` + local clone | `github_commits` signal source (`repos.json` entries need `local_path`) |

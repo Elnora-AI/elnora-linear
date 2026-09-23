@@ -168,25 +168,52 @@ export interface CuratorLlmOptions {
 }
 
 const DEFAULT_MODEL = "claude-sonnet-4-6";
+// openrouter/auto is not the default: it routes this prompt to reasoning models
+// that spend the whole output budget thinking and return no text. Set
+// LINEAR_CURATOR_MODEL=openrouter/auto to opt in anyway.
+const DEFAULT_OPENROUTER_MODEL = "anthropic/claude-sonnet-5";
 // Curator JSON response easily reaches 8-12k tokens for workspaces with
 // hundreds of open issues; 4096 truncates mid-string at that scale.
 const DEFAULT_MAX_TOKENS = 16384;
 
+/** OPENROUTER_API_KEY wins when set; otherwise ANTHROPIC_API_KEY goes to Anthropic directly. */
+export function resolveLlmProvider(): "openrouter" | "anthropic" | null {
+	if (process.env.OPENROUTER_API_KEY) return "openrouter";
+	if (process.env.ANTHROPIC_API_KEY) return "anthropic";
+	return null;
+}
+
 /**
- * Run the curator LLM call. Returns the parsed response. Throws on missing
- * ANTHROPIC_API_KEY (caller catches and surfaces in the report).
+ * Run the curator LLM call. Returns the parsed response. Throws when neither
+ * OPENROUTER_API_KEY nor ANTHROPIC_API_KEY is set (caller catches and
+ * surfaces in the report).
  */
 export async function callCuratorLlm(snapshot: string, opts: CuratorLlmOptions = {}): Promise<CuratorResponse> {
-	const apiKey = opts.apiKey ?? process.env.ANTHROPIC_API_KEY;
-	if (!apiKey) {
-		throw new Error("ANTHROPIC_API_KEY not set; cannot run the LLM phase of the curator.");
+	const provider = resolveLlmProvider();
+	if (!provider) {
+		throw new Error(
+			"Neither OPENROUTER_API_KEY nor ANTHROPIC_API_KEY is set; cannot run the LLM phase of the curator.",
+		);
 	}
-	const model = opts.model ?? process.env.LINEAR_CURATOR_MODEL ?? DEFAULT_MODEL;
+	const openrouter = provider === "openrouter";
+	const apiKey = opts.apiKey ?? (openrouter ? process.env.OPENROUTER_API_KEY : process.env.ANTHROPIC_API_KEY);
+	const model =
+		opts.model ?? (process.env.LINEAR_CURATOR_MODEL || (openrouter ? DEFAULT_OPENROUTER_MODEL : DEFAULT_MODEL));
 	const maxTokens = opts.maxTokens ?? DEFAULT_MAX_TOKENS;
 	const system = loadCuratorSystemPrompt({ agentPath: opts.agentPath });
 
 	const Anthropic = (await import("@anthropic-ai/sdk")).default;
-	const client = new Anthropic({ apiKey });
+	const client = openrouter
+		? // OpenRouter's Anthropic-compatible endpoint; the SDK appends /v1/messages.
+			new Anthropic({
+				apiKey,
+				baseURL: "https://openrouter.ai/api",
+				defaultHeaders: {
+					"HTTP-Referer": process.env.OPENROUTER_SITE_URL ?? "https://github.com/Elnora-AI/elnora-linear",
+					"X-Title": process.env.OPENROUTER_APP_NAME ?? "elnora-linear",
+				},
+			})
+		: new Anthropic({ apiKey });
 	// Append a hard JSON-only directive to the system prompt. Models that
 	// support assistant-message prefill could enforce this structurally; for
 	// models that don't (e.g. claude-sonnet-4-6), an explicit "first character
@@ -208,7 +235,10 @@ export async function callCuratorLlm(snapshot: string, opts: CuratorLlmOptions =
 		}
 	}
 	if (textParts.length === 0) {
-		throw new Error("Curator LLM returned no text content.");
+		const blocks = (res.content ?? []).map((b) => (b as { type?: string }).type).join(",") || "none";
+		throw new Error(
+			`Curator LLM returned no text content (model=${res.model}, stop_reason=${res.stop_reason}, blocks=${blocks}).`,
+		);
 	}
 	return parseActionsJson(textParts.join(""));
 }
