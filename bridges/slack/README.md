@@ -8,17 +8,18 @@ intentionally leaves chat I/O to a downstream consumer of the state file.
 `bridges/slack/bridge.py` is that consumer. It:
 
 - Posts each unposted MEDIUM question as a DM to the issue's assignee
-- Polls thread replies, batch-interprets them via Anthropic, and applies state
-  changes back to Linear via the `elnora-linear` CLI
-- Asks a one-line clarifying question in-thread when the user's reply was
-  ambiguous
+- Polls thread replies, has TypeSafe Jev (via
+  OpenRouter) judge each one, and applies confident state changes back to
+  Linear via the `elnora-linear` CLI
+- Asks a one-line clarifying question in-thread when Jev is not confident
+  about the reply
 
 The bridge is intentionally silent the rest of the time — no daily summary,
 no per-action confirmation DMs, no timeout pings. Work that can be done
 automatically already auto-applies upstream (HIGH tier), and resulting state
 changes are visible directly in Linear.
 
-It's a single Python file with two dependencies (`slack-sdk`, `anthropic`).
+It's a single Python file with one dependency (`slack-sdk`).
 The npm tarball bundles it at `bridges/slack/bridge.py` and exposes a wrapper
 subcommand — `elnora-linear curator-slack-bridge tick` — so most users never
 need to know the file path.
@@ -27,7 +28,7 @@ need to know the file path.
 
 ```sh
 npm install -g @elnora-ai/linear         # bundles bridges/slack/ for you
-pip install slack-sdk anthropic          # Python 3.9+
+pip install slack-sdk                    # Python 3.9+
 ```
 
 The bridge calls the `elnora-linear` CLI by name (resolved via `PATH`), so the
@@ -59,7 +60,7 @@ writes directly to that directory).
 | Variable | Purpose |
 |---|---|
 | `SLACK_BOT_TOKEN` | Bot token with `chat:write`, `im:write`, `im:history` scopes. Same token you can also use as `SLACK_TOKEN` for the curator's `slack_messages` signal source — just set both env vars to the same value. |
-| `ANTHROPIC_API_KEY` | Reply interpretation in `resolve` mode (the bridge degrades to a keyword-only fallback if missing) |
+| `OPENROUTER_API_KEY` | Reply judging by TypeSafe Jev in `resolve` mode. Without it, or while Jev is down, replies stay unjudged and are retried next tick; nothing in Linear changes |
 
 ### Optional env vars
 
@@ -69,7 +70,6 @@ writes directly to that directory).
 | `LINEAR_CURATOR_STATE_DIR` | `~/.config/elnora-linear/state` | Where the upstream curator writes its state |
 | `ELNORA_LINEAR_BIN` | `$(which elnora-linear)` | Override the CLI path |
 | `PYTHON_BIN` | `python3` | Override the Python interpreter (set this to your venv's `bin/python` if you installed deps in a virtualenv) |
-| `ANTHROPIC_MODEL` | `claude-sonnet-4-6` | Override the model used by the batch resolver |
 
 ### What's auto-populated vs manual
 
@@ -171,6 +171,12 @@ bridge's DM and try to handle it itself.
   two never race.
 - `--dry-run` is exhaustive: no Slack posts, no Linear mutations, no state
   file writes.
+- A reply only changes Linear when Jev (a model named `typesafe/jev-*`) reads
+  it as apply or cancel with confidence >= 0.95; skip (close the question, no
+  Linear change) takes the same bar. Anything weaker, or an answer that fails
+  validation, gets one clarifying question in-thread. A Jev outage changes
+  nothing and the reply is judged again next tick. There is no keyword
+  fallback.
 - A question is only ever expired on the strength of a **successful** thread
   read that showed no reply. If Slack cannot be reached, the question is
   retained and the tick exits 5 — expiry is irreversible (the thread_key
@@ -199,5 +205,5 @@ pip install pytest
 python3 -m pytest __tests__/bridges -q     # from the repo root
 ```
 
-The tests stub every Slack and Anthropic call, so they need no tokens and
+The tests stub every Slack and Jev call, so they need no tokens and
 make no network requests.

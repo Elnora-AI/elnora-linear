@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.7](https://github.com/Elnora-AI/elnora-linear/compare/v2.2.6...v2.2.7) (2026-09-23)
+
+
+### Bug Fixes
+
+* **curator:** judge Slack replies and HIGH auto-applies with TypeSafe Jev ([#147](https://github.com/Elnora-AI/elnora-linear/issues/147)) ([b551d44](https://github.com/Elnora-AI/elnora-linear/commit/b551d44890659d4b0ec6349e28471dfc2ef8df73))
+
 ## [2.2.6](https://github.com/Elnora-AI/elnora-linear/compare/v2.2.5...v2.2.6) (2026-09-01)
 
 

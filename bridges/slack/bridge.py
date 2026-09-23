@@ -18,10 +18,11 @@ Modes
 -----
   post-pending   Post unposted MEDIUM questions as DMs to the assignee.
 
-  resolve        Poll Slack thread replies for each posted question, call
-                 Anthropic to batch-interpret free-form replies, apply
-                 state changes back to Linear via the elnora-linear CLI,
-                 and remove resolved questions from upstream pending.
+  resolve        Poll Slack thread replies for each posted question, ask
+                 TypeSafe Jev (via OpenRouter) to judge each free-form
+                 reply, apply confident state changes back to Linear via
+                 the elnora-linear CLI, and remove resolved questions from
+                 upstream pending.
 
   tick           Run post-pending followed by resolve in one process —
                  the recommended mode for cron / launchd / systemd timers.
@@ -30,10 +31,11 @@ Environment
 -----------
   SLACK_BOT_TOKEN          Required. Bot token with chat:write,
                            im:write, im:history, channels:history scopes.
-  ANTHROPIC_API_KEY        Required for `resolve` mode (batch reply
-                           interpretation). `post-pending` works without
-                           it, but the heuristic-only fallback degrades
-                           gracefully.
+  OPENROUTER_API_KEY       Required for `resolve` mode (reply judging by
+                           TypeSafe Jev). Without it, or while Jev is down,
+                           replies are left unjudged and retried next tick;
+                           nothing in Linear changes. `post-pending` works
+                           without it.
   LINEAR_REFERENCES_DIR    Path to the populated references directory
                            (teams.json, users.json, slack.json,
                            workspace.json). Defaults to
@@ -43,8 +45,6 @@ Environment
                            to. Defaults to ~/.config/elnora-linear/state.
   ELNORA_LINEAR_BIN        Path to the elnora-linear binary. Defaults to
                            whatever PATH resolves "elnora-linear" to.
-  ANTHROPIC_MODEL          Override the model used by the batch resolver
-                           (default: claude-sonnet-4-6).
 
 Configuration files (under LINEAR_REFERENCES_DIR)
 -------------------------------------------------
@@ -75,12 +75,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
-import re
 import shutil
 import subprocess
 import sys
 import time
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -124,18 +125,11 @@ REPORT_LOG = STATE_DIR / "curator-report.jsonl"
 BRIDGE_STATE = STATE_DIR / "slack-bridge-state.json"
 
 LINEAR_CLI = _elnora_linear_bin()
-ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
 
 QUESTION_TIMEOUT_DAYS = 7
 LOCK_RETRY_SECONDS = 5
 
 CURATOR_MARKER = "*[Linear Curator]*"
-
-# Quick keyword classifiers (used as fallback when the LLM is unavailable
-# and as a sanity check on LLM output).
-APPLY_RE = re.compile(r"\b(done|close|closed|yes|yep|y|approve|approved|ship|shipped)\b", re.IGNORECASE)
-SKIP_RE = re.compile(r"\b(keep|hold|no|n|skip|leave|not yet|not now|wait)\b", re.IGNORECASE)
-CANCEL_RE = re.compile(r"\b(cancel|cancelled|wontfix|won.?t fix|kill|drop|abandon)\b", re.IGNORECASE)
 
 
 # ---------------------------------------------------------------------------
@@ -579,103 +573,162 @@ def cmd_post_pending(*, dry_run: bool) -> int:
 # Mode: resolve
 # ---------------------------------------------------------------------------
 
-BATCH_RESOLVER_SYSTEM_PROMPT = """You are the Linear curator's reply interpreter. You receive ALL pending questions and ALL recent replies in one batch, and decide what to do with each.
+# Reply interpretation: TypeSafe Jev, a classifier that answers one choice
+# question over fixed labels with a calibrated probability per label.
+JEV_URL = "https://openrouter.ai/api/v1/systemone"
+JEV_MODEL = "~typesafe/jev-latest"
+JEV_TIMEOUT_S = 20
+# Jev answers at >= 0.9 are right about 99% of the time. A decision that
+# closes the question (skip) or also moves the issue (apply, cancel) takes
+# 0.95 from a Jev model; anything weaker asks the person again.
+CLOSE_CONFIDENCE = 0.95
+CLOSING_DECISIONS = ("apply", "skip", "cancel")
 
-Users reply in free-form. A single reply might:
-- Address one pending question with a clear yes/no.
-- Address MULTIPLE pending questions in the same message ("first one done, second still open").
-- Reference a Linear issue ID that is NOT in the pending list — surface this as new info.
-- Be ambiguous, contradict prior context, or ask a follow-up question.
-
-Output a single JSON object with this exact shape:
-
-{
-  "resolutions": [
-    {
-      "thread_key": "<exact thread_key string from input>",
-      "decision": "apply" | "skip" | "cancel" | "defer" | "follow_up",
-      "target_state": "<state name if apply/cancel — e.g., Done, Canceled>",
-      "reasoning": "<one short sentence — why this decision>",
-      "follow_up_text": "<only if decision=follow_up: the clarifying question to post in the same thread>"
-    }
-  ],
-  "out_of_band_mentions": [
-    {
-      "issue_id": "<issue id mentioned in the reply but not in pending>",
-      "mentioned_in_thread_key": "<which thread the user said this in>",
-      "user_text": "<what the user said about it>",
-      "suggested_action": "investigate" | "ask_in_channel" | "ignore",
-      "rationale": "<why>"
-    }
-  ]
+REPLY_QUESTION = (
+    "The assignee of a Linear issue was asked the curator question below and replied "
+    "in Slack. What does the reply tell the curator to do with the proposed change?"
+)
+REPLY_CRITERIA = {
+    "apply": "The reply clearly confirms the proposed change: yes, it is done, close it, ship it.",
+    "skip": (
+        "The reply declines the proposed change and wants the issue left as it is: no, "
+        "not yet, keep it, hold, leave it, still working on it, wait."
+    ),
+    "cancel": "The reply explicitly asks to cancel the issue: cancel, won't fix, abandon, kill, drop it.",
+    "defer": "The reply is about something else or gives no answer yet, so wait for a further reply.",
+    "follow_up": (
+        "The reply is ambiguous, unsure, mixes several instructions, asks a question, or "
+        "contradicts the proposal, so the curator should ask a clarifying question."
+    ),
 }
-
-Rules:
-- "apply": user clearly says yes/done/close/ship → set target_state (default Done).
-- "cancel": user explicitly says cancel/wontfix/abandon/kill → target_state = Canceled. Destructive — only when explicit.
-- "skip": user says no/keep/leave/hold/wait → no Linear change; close the question.
-- "defer": reply is genuinely ambiguous; wait one more run.
-- "follow_up": YOU should ask a clarifying question (e.g., user mentioned details contradicting current state).
-- Always cite WHICH part of the reply drove your decision in `reasoning`.
-- Never apply the same action twice — each thread_key gets exactly one resolution.
-
-FINAL OUTPUT RULE: Your response MUST be a single JSON object and nothing else. The FIRST CHARACTER MUST be `{` and the LAST CHARACTER MUST be `}`. No preamble, no markdown fences, no trailing sentence."""
+FOLLOW_UP_TEXT = (
+    "I could not tell what you want for this one. Reply 'yes' to apply the proposed change, "
+    "'no' to leave the issue as it is, or 'cancel' to cancel the issue."
+)
 
 
-def _classify_reply_heuristic(text: str) -> str:
-    if CANCEL_RE.search(text):
-        return "cancel"
-    if APPLY_RE.search(text):
-        return "apply"
-    if SKIP_RE.search(text):
-        return "skip"
-    return "defer"
+class JevError(Exception):
+    """Jev was unreachable or returned an answer that fails validation."""
+
+
+class JevInvalid(JevError):
+    """Jev answered, but the answer fails validation (in practice: a close call)."""
+
+
+def _is_probability(x: Any) -> bool:
+    return (
+        isinstance(x, (int, float))
+        and not isinstance(x, bool)
+        and math.isfinite(x)
+        and 0.0 <= x <= 1.0
+    )
+
+
+def _validate_jev(data: Any, criteria: dict[str, str]) -> tuple[str, float, str]:
+    """Return (choice, confidence, model) from a Jev response, or raise JevError."""
+    try:
+        model = data["model"]
+        answer = data["answers"]["q"]
+        choice = answer["choice"]
+        confidence = answer["confidence"]
+        probabilities = answer["probabilities"]
+    except (KeyError, TypeError) as e:
+        raise JevInvalid(f"malformed Jev response: missing {e}") from None
+    if not isinstance(model, str):
+        raise JevInvalid("Jev response has no model string")
+    if not isinstance(choice, str) or choice not in criteria:
+        raise JevInvalid(f"Jev chose a label outside the criteria: {choice!r}")
+    if not _is_probability(confidence):
+        raise JevInvalid(f"Jev confidence is not a probability: {confidence!r}")
+    if not isinstance(probabilities, dict) or not all(_is_probability(p) for p in probabilities.values()):
+        raise JevInvalid("Jev probabilities are not all probabilities")
+    if choice not in probabilities or abs(probabilities[choice] - confidence) > 0.1:
+        raise JevInvalid("Jev confidence disagrees with its probabilities")
+    return choice, float(confidence), model
+
+
+def _jev_choice(state: str, question: str, criteria: dict[str, str]) -> tuple[str, float, str]:
+    key = os.environ.get("OPENROUTER_API_KEY")
+    if not key:
+        raise JevError("OPENROUTER_API_KEY not set")
+    body = json.dumps({
+        "model": JEV_MODEL,
+        "state": state,
+        "questions": {"q": {"type": "choice", "instructions": question, "criteria": criteria}},
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        JEV_URL,
+        data=body,
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=JEV_TIMEOUT_S) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except (OSError, ValueError) as e:  # URLError, HTTPError and timeouts are OSErrors
+        raise JevError(f"Jev request failed: {e}") from None
+    return _validate_jev(data, criteria)
+
+
+def _proposed_target(thread_key: str) -> str:
+    """The state the curator proposed, read from the thread_key; Done if absent."""
+    try:
+        proposed = json.loads(thread_key.split(":", 1)[1])
+        return proposed.get("to") or "Done"
+    except (IndexError, ValueError, AttributeError):
+        return "Done"
+
+
+def _reply_state(p: dict) -> str:
+    replies = "\n".join(f"- {r.get('text', '')}" for r in p.get("replies") or [])
+    return (
+        f"Curator question about {p.get('issue_id', '?')}: {p.get('question_text', '')}\n\n"
+        f"Replies from the assignee, oldest first:\n{replies}"
+    )
+
+
+def _resolve_one(p: dict) -> dict:
+    """Decide one thread. Only a confident Jev answer may close it or move the issue."""
+    k = p["thread_key"]
+    try:
+        choice, confidence, model = _jev_choice(_reply_state(p), REPLY_QUESTION, REPLY_CRITERIA)
+        decision = choice
+        if choice in CLOSING_DECISIONS and not (
+            confidence >= CLOSE_CONFIDENCE and model.startswith("typesafe/jev-")
+        ):
+            decision = "follow_up"
+        reasoning = f"Jev read the reply as {choice} ({confidence:.2f}, {model})"
+    except JevInvalid as e:
+        # Jev answered but the answer does not hold together; seen live on
+        # replies that mix two instructions. Ask the person, change nothing.
+        _warn(f"{p.get('issue_id', '?')}: Jev answer rejected ({e}); asking again")
+        decision, reasoning = "follow_up", str(e)
+    except JevError as e:
+        # Jev unreachable: touch nothing, read the thread again next tick.
+        _err(f"{p.get('issue_id', '?')}: reply not judged ({e}); question retained")
+        return {"thread_key": k, "decision": "defer", "reasoning": str(e)}
+    if decision == "follow_up":
+        # Ask once per reply: if the last follow-up is newer than the latest
+        # reply, the person has not answered it yet.
+        last_fu = p.get("last_follow_up_ts")
+        latest = (p.get("replies") or [{}])[-1].get("ts")
+        try:
+            if last_fu and latest and float(last_fu) >= float(latest):
+                decision = "defer"
+        except ValueError:
+            pass
+    target = {"apply": _proposed_target(k), "cancel": "Canceled"}.get(decision)
+    return {
+        "thread_key": k,
+        "decision": decision,
+        "target_state": target,
+        "reasoning": reasoning,
+        "follow_up_text": FOLLOW_UP_TEXT,
+    }
 
 
 def _batch_resolve(payload: list[dict]) -> dict:
-    if not payload:
-        return {"resolutions": [], "out_of_band_mentions": []}
-    try:
-        import anthropic
-    except ImportError:
-        _err("anthropic SDK not installed; falling back to heuristic-only classification. Run: pip install anthropic")
-        return _heuristic_resolve(payload)
-    try:
-        client = anthropic.Anthropic()
-        user_msg = "Pending questions and their replies:\n\n" + json.dumps(payload, indent=2)
-        resp = client.messages.create(
-            model=ANTHROPIC_MODEL,
-            max_tokens=4096,
-            temperature=0,
-            system=BATCH_RESOLVER_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_msg}],
-        )
-        text = resp.content[0].text.strip()
-        fence = re.match(r"^```(?:json)?\s*\n?(.*?)\n?\s*```$", text, re.DOTALL)
-        if fence:
-            text = fence.group(1).strip()
-        match = re.search(r"\{.*\}", text, re.DOTALL)
-        if match:
-            return json.loads(match.group(0))
-        _err(f"LLM response not JSON-parseable: {text[:200]}")
-    except Exception as e:
-        _err(f"batch resolver failed: {e}")
-    return _heuristic_resolve(payload)
-
-
-def _heuristic_resolve(payload: list[dict]) -> dict:
-    resolutions = []
-    for p in payload:
-        last_reply = (p.get("replies") or [{}])[-1].get("text", "")
-        decision = _classify_reply_heuristic(last_reply)
-        target = "Done" if decision == "apply" else "Canceled" if decision == "cancel" else None
-        resolutions.append({
-            "thread_key": p["thread_key"],
-            "decision": decision,
-            "target_state": target,
-            "reasoning": f"heuristic match on reply: {last_reply[:80]}",
-        })
-    return {"resolutions": resolutions, "out_of_band_mentions": []}
+    return {"resolutions": [_resolve_one(p) for p in payload]}
 
 
 def cmd_resolve(*, dry_run: bool) -> int:
@@ -744,6 +797,7 @@ def cmd_resolve(*, dry_run: bool) -> int:
                 "issue_id": q["issue_id"],
                 "question_text": _question_text(q),
                 "posted_at": post["posted_at"],
+                "last_follow_up_ts": post.get("last_follow_up_ts"),
                 "replies": [
                     {
                         "ts": r.get("ts"),
@@ -775,7 +829,7 @@ def cmd_resolve(*, dry_run: bool) -> int:
         followed_up_count = 0
 
         if payload:
-            _info(f"  batch-resolving {len(payload)} thread(s) with replies via Anthropic")
+            _info(f"  judging replies in {len(payload)} thread(s) with Jev")
             result = _batch_resolve(payload)
             for r in result.get("resolutions") or []:
                 k = r.get("thread_key")

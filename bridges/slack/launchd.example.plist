@@ -12,7 +12,7 @@
   `resolve` (the `tick` mode). Adjust StartCalendarInterval to your cadence.
 
   Important: launchd does not source .envrc, .env, or shell rc files.
-  Either set SLACK_BOT_TOKEN / ANTHROPIC_API_KEY in EnvironmentVariables
+  Either set SLACK_BOT_TOKEN / OPENROUTER_API_KEY in EnvironmentVariables
   below (mind the file permissions — plists live under ~/Library/LaunchAgents
   which is mode 0700 by default), or wrap the python invocation in a small
   script that loads your secret store before exec'ing bridge.py.
@@ -67,8 +67,8 @@
 
           <key>SLACK_BOT_TOKEN</key>
           <string>xoxb-...</string>
-          <key>ANTHROPIC_API_KEY</key>
-          <string>sk-ant-...</string>
+          <key>OPENROUTER_API_KEY</key>
+          <string>sk-or-...</string>
         -->
     </dict>
 
