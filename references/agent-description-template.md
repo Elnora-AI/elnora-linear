@@ -3,9 +3,7 @@
 Used by `linear-issue-creator` on the full path when the caller did not supply a description body. Fast path passes the caller's description verbatim and does not read this file.
 
 ```bash
-elnora-linear issues create "Concise actionable title" \
-  --team "<your-team-name>" \
-  --description "$(cat <<'EOF'
+cat > /tmp/issue-body.md <<'EOF'
 ## Overview
 [What and why, 1–2 sentences]
 
@@ -22,7 +20,10 @@ elnora-linear issues create "Concise actionable title" \
 ## Resources
 [Links if any]
 EOF
-)" \
+
+elnora-linear issues create "Concise actionable title" \
+  --team "<your-team-name>" \
+  --description-file /tmp/issue-body.md \
   --project "Project Name" \
   --labels "Type: feature,Layer: frontend" \
   --priority 3 --assignee "<assignee>"

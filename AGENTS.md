@@ -23,7 +23,7 @@ For a guided multi-step install (verify → key → sync → smoke-test), point 
 
 | User intent | Command |
 |---|---|
-| Create one issue | `elnora-linear issues create "Title" --team X --project P --description "md" [--labels L1,L2] [--priority 0-4] [--assignee me] [--state Todo]` — `--project` is required by default (see Pitfalls) |
+| Create one issue | `elnora-linear issues create "Title" --team X --project P (--description "md" \| --description-file <path>) [--labels L1,L2] [--priority 0-4] [--assignee me] [--state Todo]` — `--project` is required by default (see Pitfalls) |
 | Update an issue | `elnora-linear issues update ENG-123 [--state ...] [--assignee ...] [--add-comment "..."]` |
 | Search / list | `elnora-linear issues search "terms" --output json` |
 | My assigned | `elnora-linear my-issues --output json` |
@@ -41,6 +41,7 @@ For a guided multi-step install (verify → key → sync → smoke-test), point 
 
 - Title is positional: `elnora-linear issues create "Title" --team X`, not `--title "Title"`.
 - Flags: `--assignee` (not `--assign`), `--labels` (not `--label`), `--description` (not `--desc`).
+- Long markdown goes through a file: `issues create`/`issues update --description-file <path>`, `comments create`/`comments update --body-file <path>` (`-` reads stdin). Don't inline it with `--description "$(cat ...)"` — the shell mangles fenced blocks, backticks and quotes. Inline and file options are mutually exclusive; an unreadable or empty file exits 2.
 - `--labels` **replaces** — fetch current labels first if adding one.
 - `issues create` requires `--project` by default. If you omit it and the team has at least one project, the call exits 2 with `{availableProjects, suggestedRetry}` JSON — pick a project from `availableProjects` and re-run. Teams with zero projects pass through. To bypass (placeholder issues), pass `--skip-project-check`. Same rule applies to `issues batch-create` and `issues bulk-ops` (create ops) — both honor `--skip-project-check`.
 - `issues create` also validates against the team's label-policy. On failure it exits 2 with `{missing, availableForPrefix, suggestedRetry}` JSON — re-run `suggestedRetry` verbatim.

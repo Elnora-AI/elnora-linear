@@ -8,7 +8,7 @@ import type { Command } from "commander";
 import { getClient } from "../client/index.js";
 import { gqlRequest } from "../lib/bulk-graphql.js";
 import { handleAsyncCommand, outputSuccess } from "../output/index.js";
-import { CliError, findIssueByIdentifier, NotFoundError, requireYes } from "../utils/index.js";
+import { CliError, findIssueByIdentifier, NotFoundError, requireYes, resolveTextOption } from "../utils/index.js";
 
 type CommentCreateInput = Parameters<LinearClient["createComment"]>[0];
 type CommentUpdateInput = Parameters<LinearClient["updateComment"]>[1];
@@ -65,12 +65,26 @@ export function setupCommentsCommand(program: Command): void {
 	comments
 		.command("create <issueId>")
 		.description("Add a comment to an issue")
-		.requiredOption("--body <text>", "Comment text (markdown)")
+		// Not a requiredOption: Commander would reject a --body-file-only call
+		// before the action runs. The requirement is enforced below instead.
+		.option("--body <text>", "Comment text (markdown)")
+		.option(
+			"--body-file <path>",
+			"Read the comment text from a file ('-' for stdin) — use this for multi-line markdown instead of --body",
+		)
 		.action(
-			handleAsyncCommand(async (issueId: string, opts: { body: string }) => {
+			handleAsyncCommand(async (issueId: string, opts: { body?: string; bodyFile?: string }) => {
+				const body = resolveTextOption({
+					inline: opts.body,
+					file: opts.bodyFile,
+					inlineFlag: "--body",
+					fileFlag: "--body-file",
+					required: true,
+				});
+
 				const client = await getClient();
 				const issue = await findIssueByIdentifier(client, issueId);
-				const input: CommentCreateInput = { issueId: issue.id, body: opts.body };
+				const input: CommentCreateInput = { issueId: issue.id, body };
 				const payload = await client.createComment(input);
 				if (!payload.success) throw new CliError("Failed to create comment");
 				const comment = await payload.comment;
@@ -84,11 +98,25 @@ export function setupCommentsCommand(program: Command): void {
 	comments
 		.command("update <commentId>")
 		.description("Update an existing comment")
-		.requiredOption("--body <text>", "New comment text (markdown)")
+		// See `create` above: required-ness is enforced in the action so that
+		// --body-file on its own is accepted.
+		.option("--body <text>", "New comment text (markdown)")
+		.option(
+			"--body-file <path>",
+			"Read the new comment text from a file ('-' for stdin) — use this for multi-line markdown instead of --body",
+		)
 		.action(
-			handleAsyncCommand(async (commentId: string, opts: { body: string }) => {
+			handleAsyncCommand(async (commentId: string, opts: { body?: string; bodyFile?: string }) => {
+				const body = resolveTextOption({
+					inline: opts.body,
+					file: opts.bodyFile,
+					inlineFlag: "--body",
+					fileFlag: "--body-file",
+					required: true,
+				});
+
 				const client = await getClient();
-				const update: CommentUpdateInput = { body: opts.body };
+				const update: CommentUpdateInput = { body };
 				const payload = await client.updateComment(commentId, update);
 				if (!payload.success) throw new CliError("Failed to update comment");
 				const comment = await payload.comment;

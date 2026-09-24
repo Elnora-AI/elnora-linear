@@ -48,10 +48,12 @@ browser edit goes through a rich-text editor that silently rewrites what it is g
 destroyed fenced code blocks in a description while reporting success.
 
 **Long or multi-line text goes through a file, not a typed-out string.** Markdown carrying
-backticks, quotes and newlines is unsafe to paste into a shell argument:
+backticks, quotes and newlines is unsafe to paste into a shell argument, so hand the CLI the
+path and let it read the file itself (`-` reads stdin). `comments create` and
+`comments update` take `--body-file` the same way.
 
 ```bash
-elnora-linear issues update ENG-123 --description "$(cat /tmp/body.md)"
+elnora-linear issues update ENG-123 --description-file /tmp/body.md
 ```
 
 **After writing a description, read it back and check it.** Linear normalises markdown on
@@ -127,7 +129,7 @@ Show current state of the relevant fields before changing. Never blind-update.
 | Due date | `issues update ENG-X --due-date "2026-05-01"` |
 | Project | `issues update ENG-X --project "Project Name"` |
 | Title | `issues update ENG-X --title "New Title"` |
-| Description | `issues update ENG-X --description "$(cat <<EOF ... EOF)"` |
+| Description | write the markdown to a file, then `issues update ENG-X --description-file <path>` |
 | Add comment | `comments create ENG-X --body "text"` |
 | Move team | `issues update ENG-X --team "Target"` + validate labels (see §3) |
 | Relate | `relations create ENG-X ENG-Y --type related` |

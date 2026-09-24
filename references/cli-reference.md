@@ -11,17 +11,17 @@ All Linear operations use the `elnora-linear` CLI. Commands output JSON to stdou
 issues search "terms" [--limit N]
 issues list [--team "Team"] [--project "Project"] [--state "State"]
 issues get ENG-123
-issues create "Title" --team "Team" [--description "md"] [--project "P"] \
+issues create "Title" --team "Team" [--description "md"|--description-file <path>] [--project "P"] \
   [--labels "L1,L2"] [--priority 0-4] [--assignee "name"|"me"|"none"] \
   [--state "Todo"|"Backlog"] [--due-date "YYYY-MM-DD"] [--parent "ENG-123"]
-issues update ENG-123 [--title "T"] [--description "md"] [--state "S"] \
+issues update ENG-123 [--title "T"] [--description "md"|--description-file <path>] [--state "S"] \
   [--assignee "name"] [--priority 0-4] [--labels "L1,L2"] [--project "P"] \
   [--due-date "YYYY-MM-DD"] [--team "Team"] [--parent "ENG-12"|"none"]
 
 # Comments
-comments create ENG-123 --body "text"
+comments create ENG-123 (--body "text"|--body-file <path>)
 comments list ENG-123
-comments update <commentId> --body "text"
+comments update <commentId> (--body "text"|--body-file <path>)
 comments delete <commentId>
 
 # Projects
@@ -218,13 +218,46 @@ agent-activities create <sessionId> --type thought|action|elicitation|response|e
 
 **Note:** `--labels` replaces existing labels. To preserve, first read from `issues get`, then include all in `--labels`.
 
+## Long Text — Pass a File, Not a Shell Argument
+
+Markdown bodies carry fenced code blocks, backticks, `$`, and both quote kinds — all of
+which the shell interprets before the CLI sees them. Write the text to a file and pass the
+path instead:
+
+| Command | Inline | From a file |
+|---------|--------|-------------|
+| `issues create` | `--description "md"` | `--description-file <path>` |
+| `issues update` | `--description "md"` | `--description-file <path>` |
+| `comments create` | `--body "text"` | `--body-file <path>` |
+| `comments update` | `--body "text"` | `--body-file <path>` |
+
+```bash
+elnora-linear issues update ENG-123 --description-file ./body.md
+elnora-linear comments create ENG-123 --body-file ./review.md
+generate-body | elnora-linear comments create ENG-123 --body-file -   # '-' reads stdin
+```
+
+Rules, all enforced with exit code 2 and a JSON error on stderr:
+
+- The inline option and the file option are **mutually exclusive**. Passing both is an
+  error, not a silent precedence rule.
+- An unreadable or missing file is an error naming the path and the reason. Paths resolve
+  against the working directory; `~` is not expanded.
+- A file with no text in it is an error, not an empty write — an empty file is almost always
+  a wrong path or a truncated write.
+- File contents are sent verbatim; nothing is trimmed.
+
+Reading a description back after writing it is still worth doing: Linear normalises markdown
+on save (it inserts blank lines and rewrites `-` bullets as `*`), so the stored text will not
+be byte-identical to the file.
+
 ## Argument Style — Positional vs Flag
 
 Some commands take a value as a flag (`--body "text"`) and others as a positional. The conventions:
 
 | Command | Style | Example |
 |---------|-------|---------|
-| `comments create <issueId> --body "text"` | Flag — body is multi-line and optional in syntax | `comments create ENG-1 --body "Looks good"` |
+| `comments create <issueId> --body "text"` | Flag — body is multi-line; use `--body-file` for markdown | `comments create ENG-1 --body "Looks good"` |
 | `comments update <id> --body "text"` | Flag — same reason | `comments update <uuid> --body "Updated"` |
 | `issues add-label <id> <label>` | Positional — single label, atomic | `issues add-label ENG-1 "Type: bug"` |
 | `issues remove-label <id> <label>` | Positional — single label, atomic | `issues remove-label ENG-1 "Type: bug"` |
@@ -241,6 +274,7 @@ The label commands are intentionally asymmetric: `add-label`/`remove-label` are 
 | `--assign` | `--assignee` | Full flag name required |
 | `--labels "X"` on `issues list` | `--label "X"` (singular) | `list` filters by ONE label; `create`/`update` set MANY |
 | `--desc` | `--description` | Full flag name required |
+| `--description "$(cat body.md)"` | `--description-file body.md` | The shell mangles fenced blocks, backticks and quotes on the way in |
 | `--body` (on issues) | `--description` | `--body` is for `comments create` only |
 | `add-label ENG-1 "a,b"` | Two calls, or `update --labels "current,a,b"` | `add-label` rejects comma-containing values |
 | `--project "X" --team "Y"` where X belongs to Z | Match project to its owning team | Projects are team-scoped — check `workspace-routing.md` |

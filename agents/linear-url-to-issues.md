@@ -45,10 +45,12 @@ browser edit goes through a rich-text editor that silently rewrites what it is g
 destroyed fenced code blocks in a description while reporting success.
 
 **Long or multi-line text goes through a file, not a typed-out string.** Markdown carrying
-backticks, quotes and newlines is unsafe to paste into a shell argument:
+backticks, quotes and newlines is unsafe to paste into a shell argument, so hand the CLI the
+path and let it read the file itself (`-` reads stdin). `comments create` and
+`comments update` take `--body-file` the same way.
 
 ```bash
-elnora-linear issues update ENG-123 --description "$(cat /tmp/body.md)"
+elnora-linear issues update ENG-123 --description-file /tmp/body.md
 ```
 
 **After writing a description, read it back and check it.** Linear normalises markdown on
@@ -145,9 +147,7 @@ If you skipped the cold-start `context` call (single-issue run), the structured 
 ### 5. Create
 
 ```bash
-elnora-linear issues create "Specific implementable title" \
-  --team "<your-team>" \
-  --description "$(cat <<EOF
+cat > /tmp/issue-body.md <<'EOF'
 ## Overview
 [What this adds and why]
 
@@ -171,7 +171,10 @@ elnora-linear issues create "Specific implementable title" \
 ## Resources
 - [Original source](URL)
 EOF
-)" \
+
+elnora-linear issues create "Specific implementable title" \
+  --team "<your-team>" \
+  --description-file /tmp/issue-body.md \
   --project "Project Name" \
   --labels "Type: feature,Layer: ai-server" \
   --state "Todo"
