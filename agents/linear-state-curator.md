@@ -171,3 +171,8 @@ elnora-linear curator-run --dry-run
 ```
 
 Don't reimplement the snapshot logic in Bash — the curator command is the single source of truth.
+
+**The binary is `elnora-linear`, never bare `linear`.** An unrelated Linear CLI may own the
+name `linear` on `$PATH` and will answer `No API key configured`, which looks like a broken
+setup rather than the wrong program. If `elnora-linear` fails, stop and report it. Never
+substitute an MCP server, a credential file or a browser.

@@ -32,6 +32,30 @@ Extract actionable items from web content and create Linear issues. Sonnet, para
 
 `elnora-linear` is on `$PATH`. JSON output. Auth via `LINEAR_API_KEY`.
 
+**The binary is `elnora-linear`, never bare `linear`.** A different, unrelated Linear CLI
+may own the name `linear` on `$PATH`. It is a real program, so it answers rather than
+failing: typically `No API key configured`. That reads like a broken setup and invites a
+workaround, when the only thing wrong is the name. Check with `which elnora-linear` if a
+command behaves oddly.
+
+**If `elnora-linear` fails, stop and report the exact command and its output.** Do not work
+around it. In particular, never reach for a Linear MCP server, never read a `.env` or any
+other credential file, and never drive a browser to edit Linear through its web UI. A
+browser edit goes through a rich-text editor that silently rewrites what it is given: it has
+destroyed fenced code blocks in a description while reporting success.
+
+**Long or multi-line text goes through a file, not a typed-out string.** Markdown carrying
+backticks, quotes and newlines is unsafe to paste into a shell argument:
+
+```bash
+elnora-linear issues update ENG-123 --description "$(cat /tmp/body.md)"
+```
+
+**After writing a description, read it back and check it.** Linear normalises markdown on
+save: it inserts blank lines and rewrites `-` bullets as `*`. Prose survives, but anything
+whitespace-sensitive may not, and the length grows. Verify the stored text, not the text you
+sent.
+
 ```bash
 elnora-linear context --team "Team"        # cold-start primitive: projects+statuses, states, labels by prefix, members
 elnora-linear issues search "terms" [--limit N]
