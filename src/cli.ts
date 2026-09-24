@@ -187,7 +187,7 @@ sync
 program
 	.command("curator-run")
 	.description(
-		"Collect signals, build an LLM snapshot, dispatch HIGH/MEDIUM/LOW actions. Requires OPENROUTER_API_KEY or ANTHROPIC_API_KEY for the rule engine; --collect-only stays in diagnostic mode.",
+		"Collect signals, build an LLM snapshot, dispatch HIGH/MEDIUM/LOW actions. Requires an LLM key for the rule engine (OPENROUTER_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, GROQ_API_KEY, DEEPSEEK_API_KEY, XAI_API_KEY, MISTRAL_API_KEY, or LLM_BASE_URL + LLM_API_KEY); --collect-only stays in diagnostic mode.",
 	)
 	.option("--source <name>", "Run only the named source (matches signal_sources[].name)")
 	.option("--references-dir <path>", "Override default references directory")

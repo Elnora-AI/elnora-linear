@@ -47,7 +47,7 @@ Required-label policies (e.g. each issue on a team must have a `Type:` and `Laye
 - MEDIUM-tier queued questions cap at **10 per run** (`MAX_MEDIUM_QUEUED`).
 - Every applied action is appended to `~/.config/elnora-linear/state/curator-report.jsonl` for audit.
 - Re-asking or re-applying the same action within **14 days** is debounced via stable thread keys.
-- Without `OPENROUTER_API_KEY` or `ANTHROPIC_API_KEY` (or with `--collect-only`), the curator stops after signal collection — no Linear writes.
+- Without an LLM key (or with `--collect-only`), the curator stops after signal collection — no Linear writes.
 - `--dry-run` stages all decisions in the report file and skips the Linear write path.
 
 ## External-command signals

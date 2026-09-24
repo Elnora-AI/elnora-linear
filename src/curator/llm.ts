@@ -1,9 +1,10 @@
-// Anthropic-API client for the curator.
+// LLM client for the curator. Any LLM key drives it.
 //
-// One Messages.create() call per curator run. The system prompt is the body
-// of `agents/linear-state-curator.md` (loaded at runtime); the user content is
+// One model call per curator run. The system prompt is the body of
+// `agents/linear-state-curator.md` (loaded at runtime); the user content is
 // the markdown snapshot from `snapshot.ts`. Response shape is parsed by
-// `parseActionsJson`.
+// `parseActionsJson`. Anthropic goes through its SDK; every other provider
+// speaks OpenAI Chat Completions over fetch.
 
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -167,66 +168,131 @@ export interface CuratorLlmOptions {
 	agentPath?: string;
 }
 
-const DEFAULT_MODEL = "claude-sonnet-4-6";
-// openrouter/auto is not the default: it routes this prompt to reasoning models
-// that spend the whole output budget thinking and return no text. Set
-// LINEAR_CURATOR_MODEL=openrouter/auto to opt in anyway.
-const DEFAULT_OPENROUTER_MODEL = "anthropic/claude-sonnet-5";
 // Curator JSON response easily reaches 8-12k tokens for workspaces with
 // hundreds of open issues; 4096 truncates mid-string at that scale.
 const DEFAULT_MAX_TOKENS = 16384;
 
-/** OPENROUTER_API_KEY wins when set; otherwise ANTHROPIC_API_KEY goes to Anthropic directly. */
-export function resolveLlmProvider(): "openrouter" | "anthropic" | null {
-	if (process.env.OPENROUTER_API_KEY) return "openrouter";
-	if (process.env.ANTHROPIC_API_KEY) return "anthropic";
-	return null;
+/**
+ * The provider is picked in this order:
+ *
+ *   1. LLM_PROVIDER, when set (openrouter | anthropic | openai | google | groq |
+ *      deepseek | xai | mistral | custom)
+ *   2. LLM_BASE_URL, when set → custom: any OpenAI-compatible endpoint (Azure
+ *      OpenAI, Together, Fireworks, LiteLLM, a self-hosted vLLM/Ollama, …) with
+ *      LLM_API_KEY and LINEAR_CURATOR_MODEL
+ *   3. the first provider below whose API key is set
+ *
+ * LINEAR_CURATOR_MODEL overrides the provider's default model. OpenRouter
+ * comes first because the Jev check before a HIGH action needs that key
+ * anyway. openrouter/auto is not its default: it routes this prompt to
+ * reasoning models that spend the whole output budget thinking and return
+ * no text. Set LINEAR_CURATOR_MODEL=openrouter/auto to opt in anyway.
+ */
+interface Provider {
+	/** Env vars that may hold the key; the first one set wins. */
+	keys: string[];
+	model: string;
+	/** OpenAI-compatible endpoint. Absent = the Anthropic SDK. */
+	baseURL?: string;
 }
 
-/**
- * Run the curator LLM call. Returns the parsed response. Throws when neither
- * OPENROUTER_API_KEY nor ANTHROPIC_API_KEY is set (caller catches and
- * surfaces in the report).
- */
-export async function callCuratorLlm(snapshot: string, opts: CuratorLlmOptions = {}): Promise<CuratorResponse> {
-	const provider = resolveLlmProvider();
-	if (!provider) {
-		throw new Error(
-			"Neither OPENROUTER_API_KEY nor ANTHROPIC_API_KEY is set; cannot run the LLM phase of the curator.",
-		);
+export const PROVIDERS: Record<string, Provider> = {
+	openrouter: {
+		keys: ["OPENROUTER_API_KEY"],
+		model: "anthropic/claude-sonnet-5",
+		baseURL: "https://openrouter.ai/api/v1",
+	},
+	anthropic: { keys: ["ANTHROPIC_API_KEY"], model: "claude-sonnet-4-6" },
+	openai: { keys: ["OPENAI_API_KEY"], model: "gpt-5", baseURL: "https://api.openai.com/v1" },
+	google: {
+		keys: ["GOOGLE_GENERATIVE_AI_API_KEY", "GEMINI_API_KEY"],
+		model: "gemini-flash-latest",
+		baseURL: "https://generativelanguage.googleapis.com/v1beta/openai",
+	},
+	groq: { keys: ["GROQ_API_KEY"], model: "openai/gpt-oss-120b", baseURL: "https://api.groq.com/openai/v1" },
+	deepseek: { keys: ["DEEPSEEK_API_KEY"], model: "deepseek-chat", baseURL: "https://api.deepseek.com/v1" },
+	xai: { keys: ["XAI_API_KEY"], model: "grok-4.7", baseURL: "https://api.x.ai/v1" },
+	mistral: { keys: ["MISTRAL_API_KEY"], model: "mistral-large-latest", baseURL: "https://api.mistral.ai/v1" },
+};
+
+const ALIASES: Record<string, string> = { gemini: "google", grok: "xai", "openai-compatible": "custom" };
+
+export const LLM_KEY_ENVS = Object.values(PROVIDERS).flatMap((p) => p.keys);
+
+export interface ResolvedLlmProvider {
+	name: string;
+	model: string;
+	apiKey?: string;
+	/** Env var the key came from, for reports. Never the value. */
+	keyEnv?: string;
+	baseURL?: string;
+	/** Why the curator can't call a model as configured; undefined when it can. */
+	problem?: string;
+}
+
+function env(name: string): string | undefined {
+	return process.env[name]?.trim() || undefined;
+}
+
+export function resolveLlmProvider(): ResolvedLlmProvider {
+	const requested = env("LLM_PROVIDER")?.toLowerCase();
+	const name = requested ? (ALIASES[requested] ?? requested) : undefined;
+	const modelOverride = env("LINEAR_CURATOR_MODEL");
+
+	if (name === "custom" || (!name && env("LLM_BASE_URL"))) {
+		const baseURL = env("LLM_BASE_URL");
+		const model = modelOverride ?? "";
+		const missing = [!baseURL && "LLM_BASE_URL", !model && "LINEAR_CURATOR_MODEL"].filter(Boolean);
+		return {
+			name: "custom",
+			model,
+			baseURL,
+			apiKey: env("LLM_API_KEY"),
+			keyEnv: "LLM_API_KEY",
+			problem: missing.length ? `custom provider needs ${missing.join(" and ")}` : undefined,
+		};
 	}
-	const openrouter = provider === "openrouter";
-	const apiKey = opts.apiKey ?? (openrouter ? process.env.OPENROUTER_API_KEY : process.env.ANTHROPIC_API_KEY);
-	const model =
-		opts.model ?? (process.env.LINEAR_CURATOR_MODEL || (openrouter ? DEFAULT_OPENROUTER_MODEL : DEFAULT_MODEL));
-	const maxTokens = opts.maxTokens ?? DEFAULT_MAX_TOKENS;
-	const system = loadCuratorSystemPrompt({ agentPath: opts.agentPath });
 
+	if (name && !PROVIDERS[name]) {
+		return {
+			name,
+			model: modelOverride ?? "",
+			problem: `unknown LLM_PROVIDER "${name}"; use one of ${[...Object.keys(PROVIDERS), "custom"].join(", ")}`,
+		};
+	}
+
+	const detected = name ?? Object.keys(PROVIDERS).find((p) => PROVIDERS[p].keys.some((k) => env(k)));
+	if (!detected) {
+		return {
+			name: "anthropic",
+			model: modelOverride ?? PROVIDERS.anthropic.model,
+			keyEnv: "ANTHROPIC_API_KEY",
+			problem: `no LLM key set; set one of ${LLM_KEY_ENVS.join(", ")}, or LLM_BASE_URL for an OpenAI-compatible endpoint`,
+		};
+	}
+
+	const provider = PROVIDERS[detected];
+	const keyEnv = provider.keys.find((k) => env(k)) ?? provider.keys[0];
+	const apiKey = env(keyEnv);
+	return {
+		name: detected,
+		model: modelOverride ?? provider.model,
+		apiKey,
+		keyEnv,
+		baseURL: provider.baseURL,
+		problem: apiKey ? undefined : `${keyEnv} not set`,
+	};
+}
+
+async function anthropicText(p: ResolvedLlmProvider, system: string, user: string, maxTokens: number): Promise<string> {
 	const Anthropic = (await import("@anthropic-ai/sdk")).default;
-	const client = openrouter
-		? // OpenRouter's Anthropic-compatible endpoint; the SDK appends /v1/messages.
-			new Anthropic({
-				apiKey,
-				baseURL: "https://openrouter.ai/api",
-				defaultHeaders: {
-					"HTTP-Referer": process.env.OPENROUTER_SITE_URL ?? "https://github.com/Elnora-AI/elnora-linear",
-					"X-Title": process.env.OPENROUTER_APP_NAME ?? "elnora-linear",
-				},
-			})
-		: new Anthropic({ apiKey });
-	// Append a hard JSON-only directive to the system prompt. Models that
-	// support assistant-message prefill could enforce this structurally; for
-	// models that don't (e.g. claude-sonnet-4-6), an explicit "first character
-	// must be `{`" instruction combined with the brace-balanced fallback in
-	// parseActionsJson keeps the success rate high.
-	const enforcedSystem = `${system}\n\n---\n\nFINAL OUTPUT RULE: Your response MUST be a single JSON object and nothing else. The FIRST CHARACTER of your response MUST be the literal "{" and the LAST CHARACTER MUST be the literal "}". Do not include any preamble such as "Analyzing the snapshot…" or any trailing sentence. Do not wrap the JSON in markdown code fences. Do not narrate your reasoning — emit only the object.`;
+	const client = new Anthropic({ apiKey: p.apiKey });
 	const res = await client.messages.create({
-		model,
+		model: p.model,
 		max_tokens: maxTokens,
-		system: enforcedSystem,
-		messages: [{ role: "user", content: snapshot }],
+		system,
+		messages: [{ role: "user", content: user }],
 	});
-
 	const textParts: string[] = [];
 	for (const block of res.content ?? []) {
 		if ((block as { type?: string }).type === "text") {
@@ -240,7 +306,91 @@ export async function callCuratorLlm(snapshot: string, opts: CuratorLlmOptions =
 			`Curator LLM returned no text content (model=${res.model}, stop_reason=${res.stop_reason}, blocks=${blocks}).`,
 		);
 	}
-	return parseActionsJson(textParts.join(""));
+	return textParts.join("");
+}
+
+/** OpenAI Chat Completions, which every non-Anthropic provider above serves. */
+async function chatCompletionsText(
+	p: ResolvedLlmProvider,
+	system: string,
+	user: string,
+	maxTokens: number,
+): Promise<string> {
+	const headers: Record<string, string> = {
+		Authorization: `Bearer ${p.apiKey ?? ""}`,
+		"Content-Type": "application/json",
+	};
+	if (p.name === "openrouter") {
+		headers["HTTP-Referer"] = process.env.OPENROUTER_SITE_URL ?? "https://github.com/Elnora-AI/elnora-linear";
+		headers["X-Title"] = process.env.OPENROUTER_APP_NAME ?? "elnora-linear";
+	}
+	// OpenAI's reasoning models reject max_tokens; everyone else still expects it.
+	const budget = p.name === "openai" ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens };
+	const res = await fetch(`${(p.baseURL ?? "").replace(/\/+$/, "")}/chat/completions`, {
+		method: "POST",
+		headers,
+		body: JSON.stringify({
+			model: p.model,
+			...budget,
+			messages: [
+				{ role: "system", content: system },
+				{ role: "user", content: user },
+			],
+		}),
+	});
+	if (!res.ok) {
+		throw new Error(`Curator LLM (${p.name}) returned HTTP ${res.status}: ${(await res.text()).slice(0, 500)}`);
+	}
+	const body = (await res.json()) as {
+		model?: string;
+		choices?: { message?: { content?: unknown }; finish_reason?: string }[];
+	};
+	const content = body.choices?.[0]?.message?.content;
+	const text =
+		typeof content === "string"
+			? content
+			: Array.isArray(content)
+				? content
+						.map((part) =>
+							typeof (part as { text?: unknown }).text === "string" ? (part as { text: string }).text : "",
+						)
+						.join("")
+				: "";
+	if (!text) {
+		throw new Error(
+			`Curator LLM returned no text content (model=${body.model ?? p.model}, finish_reason=${body.choices?.[0]?.finish_reason ?? "none"}).`,
+		);
+	}
+	return text;
+}
+
+/**
+ * Run the curator LLM call. Returns the parsed response. Throws when no
+ * usable LLM provider is configured (caller catches and surfaces in the
+ * report).
+ */
+export async function callCuratorLlm(snapshot: string, opts: CuratorLlmOptions = {}): Promise<CuratorResponse> {
+	const resolved = resolveLlmProvider();
+	if (resolved.problem) {
+		throw new Error(`Cannot run the LLM phase of the curator: ${resolved.problem}.`);
+	}
+	const p: ResolvedLlmProvider = {
+		...resolved,
+		model: opts.model ?? resolved.model,
+		apiKey: opts.apiKey ?? resolved.apiKey,
+	};
+	const maxTokens = opts.maxTokens ?? DEFAULT_MAX_TOKENS;
+	const system = loadCuratorSystemPrompt({ agentPath: opts.agentPath });
+	// Append a hard JSON-only directive to the system prompt. Models that
+	// support assistant-message prefill could enforce this structurally; for
+	// models that don't (e.g. claude-sonnet-4-6), an explicit "first character
+	// must be `{`" instruction combined with the brace-balanced fallback in
+	// parseActionsJson keeps the success rate high.
+	const enforcedSystem = `${system}\n\n---\n\nFINAL OUTPUT RULE: Your response MUST be a single JSON object and nothing else. The FIRST CHARACTER of your response MUST be the literal "{" and the LAST CHARACTER MUST be the literal "}". Do not include any preamble such as "Analyzing the snapshot…" or any trailing sentence. Do not wrap the JSON in markdown code fences. Do not narrate your reasoning — emit only the object.`;
+	const text = p.baseURL
+		? await chatCompletionsText(p, enforcedSystem, snapshot, maxTokens)
+		: await anthropicText(p, enforcedSystem, snapshot, maxTokens);
+	return parseActionsJson(text);
 }
 
 export const _internal = { stripFences, BUNDLED_AGENT_PATH };
