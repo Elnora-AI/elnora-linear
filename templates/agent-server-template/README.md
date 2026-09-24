@@ -28,7 +28,7 @@ npm install -g @elnora-ai/linear
 cp -r templates/agent-server-template /path/to/your/agent-server
 
 # 3. Register the webhook with Linear.
-linear webhooks create \
+elnora-linear webhooks create \
   --url https://your-public-url/linear/webhook \
   --resource-types AgentSessionEvent \
   --all-public-teams
@@ -51,16 +51,16 @@ The template stops after acking the session. The real agent logic — running Cl
 Use the CLI for everything Linear-side:
 
 ```bash
-linear agent-activities create <sessionId> --type thought --body "Working on it"
-linear agent-activities create <sessionId> --type response --body "Done. PR: <url>"
-linear agent-sessions update-external-url <sessionId> --add https://github.com/.../pull/42
+elnora-linear agent-activities create <sessionId> --type thought --body "Working on it"
+elnora-linear agent-activities create <sessionId> --type response --body "Done. PR: <url>"
+elnora-linear agent-sessions update-external-url <sessionId> --add https://github.com/.../pull/42
 ```
 
 ## Security notes
 
 - **Always** verify the signature before reading the body. The template ships an inline `verifyLinearWebhook` helper (HMAC-SHA256 + `timingSafeEqual`) — don't bypass it.
 - **Never** commit `LINEAR_WEBHOOK_SECRET` or `LINEAR_API_KEY`. Use your host's secret store.
-- **Rotate** the webhook secret with `linear webhooks rotate-secret <id> --yes` if you suspect a leak. The new secret is shown ONCE.
+- **Rotate** the webhook secret with `elnora-linear webhooks rotate-secret <id> --yes` if you suspect a leak. The new secret is shown ONCE.
 - **Respond fast.** Linear retries on non-200 or >5s. ACK within 200ms by responding `200 ok` immediately, then doing the work async.
 
 ## Activity types & lifecycle
@@ -77,12 +77,12 @@ The session is considered "stale" after 30 minutes of inactivity but is recovera
 
 ## Troubleshooting
 
-- **401 in your logs**: signature mismatch. Check `LINEAR_WEBHOOK_SECRET` matches what `linear webhooks list` shows.
+- **401 in your logs**: signature mismatch. Check `LINEAR_WEBHOOK_SECRET` matches what `elnora-linear webhooks list` shows.
 - **No webhook delivered**: confirm `agentSessionEvent` is in the webhook's `resourceTypes`.
 - **"Agent unresponsive" in Linear UI**: you took longer than 10s to emit a thought. Move the ack BEFORE any expensive work.
 
 ## See also
 
-- Plugin CLI: `linear webhooks --help`, `linear agent-sessions --help`, `linear agent-activities --help`
+- Plugin CLI: `elnora-linear webhooks --help`, `elnora-linear agent-sessions --help`, `elnora-linear agent-activities --help`
 - Linear's official agent docs: https://linear.app/developers/agents
 - Linear's reference Cloudflare-Worker demo: https://github.com/linear/linear-agent-demo
