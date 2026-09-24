@@ -34,6 +34,34 @@ Cross-validate an issue's Done Criteria against the actual PR diff. Sonnet, para
 
 `elnora-linear` is on `$PATH`. JSON output. Auth via `LINEAR_API_KEY`.
 
+**The binary is `elnora-linear`, never bare `linear`.** A different, unrelated Linear CLI
+may own the name `linear` on `$PATH`. It is a real program, so it answers rather than
+failing: typically `No API key configured`. That reads like a broken setup and invites a
+workaround, when the only thing wrong is the name. Check with `which elnora-linear` if a
+command behaves oddly.
+
+**If `elnora-linear` fails, stop and report the exact command and its output.** Do not work
+around it. In particular, never reach for a Linear MCP server, never read a `.env` or any
+other credential file, and never drive a browser to edit Linear through its web UI. A
+browser edit goes through a rich-text editor that silently rewrites what it is given: it has
+destroyed fenced code blocks in a description while reporting success.
+
+**Long or multi-line text goes through a file, not a typed-out string.** Markdown carrying
+backticks, quotes and newlines is unsafe to paste into a shell argument, so hand the CLI the
+path and let it read the file itself (`-` reads stdin). `comments create` and
+`comments update` take `--body-file` the same way. Write the file as UTF-8 — any other
+encoding exits 2 rather than being guessed at. On Windows PowerShell use
+`Set-Content -Encoding utf8`, since `>` and `Out-File` default to UTF-16LE.
+
+```bash
+elnora-linear issues update ENG-123 --description-file /tmp/body.md
+```
+
+**After writing a description, read it back and check it.** Linear normalises markdown on
+save: it inserts blank lines and rewrites `-` bullets as `*`. Prose survives, but anything
+whitespace-sensitive may not, and the length grows. Verify the stored text, not the text you
+sent.
+
 ```bash
 elnora-linear issues get ENG-XXX
 elnora-linear attachments list ENG-XXX
@@ -98,7 +126,7 @@ Be evidence-based — cite file paths and line ranges where possible. Don't trus
 ### 6. Post the verdict
 
 ```bash
-elnora-linear comments create ENG-XXX --body "$(cat <<EOF
+cat > /tmp/review-verdict.md <<'EOF'
 ## Review verdict: <Approved | Changes Requested | Clarification Needed>
 
 **PR:** <#N — title> (<state: open|merged|closed>)
@@ -106,7 +134,7 @@ elnora-linear comments create ENG-XXX --body "$(cat <<EOF
 
 | Criterion | Verdict | Evidence |
 |---|---|---|
-| <criterion 1> | ✅ Met | \`path/to/file.ts:42\` — <symbol or function> |
+| <criterion 1> | ✅ Met | `path/to/file.ts:42` — <symbol or function> |
 | <criterion 2> | ❌ Not addressed | — |
 | <criterion 3> | ❓ Unable to verify | Requires runtime evidence: <what to check> |
 
@@ -115,7 +143,8 @@ elnora-linear comments create ENG-XXX --body "$(cat <<EOF
 
 <!-- linear-issue-reviewer agent | <YYYY-MM-DD> -->
 EOF
-)"
+
+elnora-linear comments create ENG-XXX --body-file /tmp/review-verdict.md
 ```
 
 ### 7. Report to parent

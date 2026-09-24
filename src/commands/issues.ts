@@ -43,6 +43,7 @@ import {
 	resolveProject,
 	resolveState,
 	resolveTeam,
+	resolveTextOption,
 	resolveUser,
 	teamRequiresProject,
 	ValidationError,
@@ -372,6 +373,10 @@ export function setupIssuesCommand(program: Command): void {
 		)
 		.requiredOption("--team <team>", "Team name or key")
 		.option("-d, --description <desc>", "Issue description (markdown)")
+		.option(
+			"--description-file <path>",
+			"Read the description from a file ('-' for stdin) — use this for multi-line markdown instead of --description",
+		)
 		.option("-a, --assignee <assignee>", "Assignee (name, email, or 'me')")
 		.option("-p, --priority <priority>", "Priority: 0=None, 1=Urgent, 2=High, 3=Normal, 4=Low")
 		.option("--project <project>", "Project name")
@@ -386,6 +391,15 @@ export function setupIssuesCommand(program: Command): void {
 		)
 		.action(
 			handleAsyncCommand(async (title: string, opts: Record<string, string>) => {
+				// Resolved before the client is built so a bad path fails on
+				// argument validation, never halfway through a write.
+				const description = resolveTextOption({
+					inline: opts.description,
+					file: opts.descriptionFile,
+					inlineFlag: "--description",
+					fileFlag: "--description-file",
+				});
+
 				const client = await getClient();
 
 				const [teamResult, userResult, projectResult, labelResults, parentIssue] = await Promise.all([
@@ -427,7 +441,7 @@ export function setupIssuesCommand(program: Command): void {
 
 				const input: IssueCreateInput = { teamId: teamResult.id, title };
 
-				if (opts.description) input.description = opts.description;
+				if (description) input.description = description;
 				if (opts.priority) {
 					const priority = parsePriority(opts.priority);
 					if (priority !== undefined) input.priority = priority;
@@ -515,6 +529,10 @@ export function setupIssuesCommand(program: Command): void {
 		.description("Update an existing issue")
 		.option("--title <title>", "New title")
 		.option("-d, --description <desc>", "New description (markdown)")
+		.option(
+			"--description-file <path>",
+			"Read the new description from a file ('-' for stdin) — use this for multi-line markdown instead of --description",
+		)
 		.option("--state <state>", "New state name")
 		.option("-a, --assignee <assignee>", "New assignee (name, email, 'me', or 'none')")
 		.option("-p, --priority <priority>", "New priority: 0-4")
@@ -527,13 +545,22 @@ export function setupIssuesCommand(program: Command): void {
 		.option("--with-issue", "Return the full updated issue body (default: just identifier + confirmation)")
 		.action(
 			handleAsyncCommand(async (id: string, opts: Record<string, string>) => {
+				// Resolved before the client is built so a bad path fails on
+				// argument validation, never halfway through a write.
+				const description = resolveTextOption({
+					inline: opts.description,
+					file: opts.descriptionFile,
+					inlineFlag: "--description",
+					fileFlag: "--description-file",
+				});
+
 				const client = await getClient();
 				const withIssue = Boolean((opts as Record<string, unknown>).withIssue);
 				const issue = await findIssueByIdentifier(client, id);
 				const update: Partial<IssueUpdateInput> = {};
 
 				if (opts.title) update.title = opts.title;
-				if (opts.description) update.description = opts.description;
+				if (description) update.description = description;
 				if (opts.priority) {
 					const priority = parsePriority(opts.priority);
 					if (priority !== undefined) update.priority = priority;

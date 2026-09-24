@@ -35,6 +35,34 @@ Modify existing issues. Haiku by default (single-field updates, state changes, l
 
 `elnora-linear` is on `$PATH`. JSON output. Auth via `LINEAR_API_KEY`.
 
+**The binary is `elnora-linear`, never bare `linear`.** A different, unrelated Linear CLI
+may own the name `linear` on `$PATH`. It is a real program, so it answers rather than
+failing: typically `No API key configured`. That reads like a broken setup and invites a
+workaround, when the only thing wrong is the name. Check with `which elnora-linear` if a
+command behaves oddly.
+
+**If `elnora-linear` fails, stop and report the exact command and its output.** Do not work
+around it. In particular, never reach for a Linear MCP server, never read a `.env` or any
+other credential file, and never drive a browser to edit Linear through its web UI. A
+browser edit goes through a rich-text editor that silently rewrites what it is given: it has
+destroyed fenced code blocks in a description while reporting success.
+
+**Long or multi-line text goes through a file, not a typed-out string.** Markdown carrying
+backticks, quotes and newlines is unsafe to paste into a shell argument, so hand the CLI the
+path and let it read the file itself (`-` reads stdin). `comments create` and
+`comments update` take `--body-file` the same way. Write the file as UTF-8 — any other
+encoding exits 2 rather than being guessed at. On Windows PowerShell use
+`Set-Content -Encoding utf8`, since `>` and `Out-File` default to UTF-16LE.
+
+```bash
+elnora-linear issues update ENG-123 --description-file /tmp/body.md
+```
+
+**After writing a description, read it back and check it.** Linear normalises markdown on
+save: it inserts blank lines and rewrites `-` bullets as `*`. Prose survives, but anything
+whitespace-sensitive may not, and the length grows. Verify the stored text, not the text you
+sent.
+
 ```bash
 elnora-linear issues get ENG-123
 elnora-linear issues search "terms" [--limit N]
@@ -103,7 +131,7 @@ Show current state of the relevant fields before changing. Never blind-update.
 | Due date | `issues update ENG-X --due-date "2026-05-01"` |
 | Project | `issues update ENG-X --project "Project Name"` |
 | Title | `issues update ENG-X --title "New Title"` |
-| Description | `issues update ENG-X --description "$(cat <<EOF ... EOF)"` |
+| Description | write the markdown to a file, then `issues update ENG-X --description-file <path>` |
 | Add comment | `comments create ENG-X --body "text"` |
 | Move team | `issues update ENG-X --team "Target"` + validate labels (see §3) |
 | Relate | `relations create ENG-X ENG-Y --type related` |

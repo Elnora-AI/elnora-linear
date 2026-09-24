@@ -7,7 +7,7 @@
  * server for you.
  *
  *   1. Register a webhook in Linear pointing at this server's URL:
- *        linear webhooks create \
+ *        elnora-linear webhooks create \
  *          --url https://your-host/linear/webhook \
  *          --resource-types AgentSessionEvent \
  *          --all-public-teams
@@ -176,7 +176,7 @@ const server = http.createServer(async (req, res) => {
   // TODO: kick off whatever the agent actually does. Examples:
   //  - Run /linear-work as a subprocess (background coding agent)
   //  - Trigger your own task queue
-  //  - Update the issue with progress via `linear issues update`
+  //  - Update the issue with progress via `elnora-linear issues update`
   console.log(`[agent] session ${sessionId} acknowledged`);
 });
 
