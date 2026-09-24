@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.4.0](https://github.com/Elnora-AI/elnora-linear/compare/v2.3.0...v2.4.0) (2026-09-24)
+
+
+### Features
+
+* **curator:** any LLM key drives the curator ([#151](https://github.com/Elnora-AI/elnora-linear/issues/151)) ([5eac16e](https://github.com/Elnora-AI/elnora-linear/commit/5eac16ea74192b9ab76391fc3c29f366373fc1cc))
+* **issues:** read descriptions and comment bodies from a file ([#152](https://github.com/Elnora-AI/elnora-linear/issues/152)) ([c18698f](https://github.com/Elnora-AI/elnora-linear/commit/c18698fdcb17fa6573ed2ff48cfc1239b77137da))
+
 ## [2.3.0](https://github.com/Elnora-AI/elnora-linear/compare/v2.2.7...v2.3.0) (2026-09-23)
 
 
