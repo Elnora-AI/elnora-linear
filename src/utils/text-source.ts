@@ -12,6 +12,51 @@ import { readFileSync } from "node:fs";
 import { resolve as resolvePath } from "node:path";
 import { ValidationError } from "./errors.js";
 
+/** UTF-16 byte-order marks, by the first two bytes of the file. */
+const UTF16_BOMS = [
+	{ bytes: [0xff, 0xfe], name: "UTF-16LE", mark: "FF FE" },
+	{ bytes: [0xfe, 0xff], name: "UTF-16BE", mark: "FE FF" },
+] as const;
+
+const RE_ENCODE_HINT =
+	"Re-save the file as UTF-8 and pass it again — PowerShell: `Set-Content -Encoding utf8 <path> -Value $text` (`>` and `Out-File` default to UTF-16LE, `Set-Content` to ANSI); macOS/Linux: `iconv -f <encoding> -t UTF-8`.";
+
+/**
+ * Decodes file bytes as UTF-8, refusing anything that is not valid UTF-8.
+ *
+ * Decoding invalid bytes leniently replaces each one with U+FFFD, which leaves
+ * a non-empty string that passes every later check — so the command would print
+ * success while writing mojibake. Guessing the real encoding would only make
+ * that failure subtler, so the reader rejects instead, on the same reasoning as
+ * the empty-file rule below: a file the caller did not mean to send is worth an
+ * error, not a silent write.
+ *
+ * A UTF-16 byte-order mark is named explicitly because it is the likeliest way
+ * to get here — PowerShell's `>` and `Out-File` write UTF-16LE by default, so a
+ * caller who followed the docs to the letter lands on exactly these bytes.
+ *
+ * A UTF-8 BOM is valid UTF-8 and is what Windows PowerShell writes for
+ * `-Encoding utf8`, so it is accepted; the marker itself is dropped, because a
+ * leading U+FEFF stops the first line of a markdown document parsing as a
+ * heading. Nothing else about the contents is changed.
+ */
+function decodeUtf8(bytes: Buffer, subject: string): string {
+	const bom = UTF16_BOMS.find((b) => bytes[0] === b.bytes[0] && bytes[1] === b.bytes[1]);
+	if (bom) {
+		throw new ValidationError(
+			`${subject} is ${bom.name}, not UTF-8 (it starts with a ${bom.name} byte-order mark, ${bom.mark}).`,
+			RE_ENCODE_HINT,
+		);
+	}
+	try {
+		// ignoreBOM: false is what drops a leading UTF-8 BOM. It is the default,
+		// but spelled out here because dropping the marker is a deliberate choice.
+		return new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(bytes);
+	} catch {
+		throw new ValidationError(`${subject} is not valid UTF-8 text.`, RE_ENCODE_HINT);
+	}
+}
+
 /**
  * Reads a text file for a `--<name>-file` option. `-` reads stdin, matching the
  * convention already used by `issues batch-create` and friends. Paths are
@@ -19,8 +64,9 @@ import { ValidationError } from "./errors.js";
  */
 function readTextFile(file: string, fileFlag: string): string {
 	const label = file === "-" ? "stdin" : `"${file}"`;
+	let bytes: Buffer;
 	try {
-		return file === "-" ? readFileSync(0, "utf-8") : readFileSync(resolvePath(file), "utf-8");
+		bytes = file === "-" ? readFileSync(0) : readFileSync(resolvePath(file));
 	} catch (e: unknown) {
 		const msg = e instanceof Error ? e.message : String(e);
 		throw new ValidationError(
@@ -28,6 +74,7 @@ function readTextFile(file: string, fileFlag: string): string {
 			"Pass a readable path (relative paths resolve against the working directory; '~' is not expanded), or '-' to read stdin.",
 		);
 	}
+	return decodeUtf8(bytes, `${fileFlag} ${label}`);
 }
 
 export interface TextOptionSource {
@@ -49,7 +96,8 @@ export interface TextOptionSource {
  * inside a fenced block is load-bearing.
  *
  * Throws {@link ValidationError} when both options are given, when the file
- * cannot be read, or when the file holds no text. An empty file is almost
+ * cannot be read, when it is not valid UTF-8, or when the file holds no text.
+ * An empty file is almost
  * always a wrong path or a truncated write; accepting it would blank the field
  * and report success, which is the failure this option exists to prevent.
  */

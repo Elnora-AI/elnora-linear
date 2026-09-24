@@ -47,7 +47,9 @@ destroyed fenced code blocks in a description while reporting success.
 **Long or multi-line text goes through a file, not a typed-out string.** Markdown carrying
 backticks, quotes and newlines is unsafe to paste into a shell argument, so hand the CLI the
 path and let it read the file itself (`-` reads stdin). `comments create` and
-`comments update` take `--body-file` the same way.
+`comments update` take `--body-file` the same way. Write the file as UTF-8 — any other
+encoding exits 2 rather than being guessed at. On Windows PowerShell use
+`Set-Content -Encoding utf8`, since `>` and `Out-File` default to UTF-16LE.
 
 ```bash
 elnora-linear issues update ENG-123 --description-file /tmp/body.md

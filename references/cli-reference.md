@@ -245,7 +245,27 @@ Rules, all enforced with exit code 2 and a JSON error on stderr:
   against the working directory; `~` is not expanded.
 - A file with no text in it is an error, not an empty write — an empty file is almost always
   a wrong path or a truncated write.
-- File contents are sent verbatim; nothing is trimmed.
+- **The file must be UTF-8.** Any other encoding is an error, not a best-effort guess:
+  decoding it leniently would replace every undecodable byte with `U+FFFD` and report success
+  while writing mojibake. A UTF-16 byte-order mark is named explicitly in the error.
+- File contents are sent verbatim; nothing is trimmed. A UTF-8 byte-order mark, if present,
+  is dropped — a leading `U+FEFF` would stop the first line parsing as a heading.
+
+### Writing the file as UTF-8 on Windows
+
+PowerShell's defaults are the trap here: in Windows PowerShell 5.1, `>` and `Out-File` write
+**UTF-16LE with a BOM**, and `Set-Content` writes ANSI, which stops being UTF-8 as soon as the
+text contains an accented character. Name the encoding explicitly:
+
+```powershell
+Set-Content -Encoding utf8 .\body.md -Value $text     # UTF-8 (with a BOM on Windows PowerShell 5.1)
+Out-File -Encoding utf8 .\body.md -InputObject $text  # same
+elnora-linear issues update ENG-123 --description-file .\body.md
+```
+
+PowerShell 7+ writes UTF-8 without a BOM for `-Encoding utf8`; both forms are accepted. macOS
+and Linux shells write UTF-8 already; convert an existing file with
+`iconv -f <encoding> -t UTF-8 in.md > body.md`.
 
 Reading a description back after writing it is still worth doing: Linear normalises markdown
 on save (it inserts blank lines and rewrites `-` bullets as `*`), so the stored text will not

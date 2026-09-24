@@ -21,6 +21,13 @@ function writeBody(name: string, contents: string): string {
 	return path;
 }
 
+/** Writes exact bytes, so a test can hand the reader a non-UTF-8 file. */
+function writeBytes(name: string, bytes: Buffer): string {
+	const path = join(tmp, name);
+	writeFileSync(path, bytes);
+	return path;
+}
+
 const FLAGS = { inlineFlag: "--description", fileFlag: "--description-file" };
 
 describe("resolveTextOption — inline value", () => {
@@ -91,6 +98,75 @@ describe("resolveTextOption — file value", () => {
 	it("rejects a whitespace-only file", () => {
 		const path = writeBody("blank.md", "\n\n   \n");
 		expect(() => resolveTextOption({ file: path, ...FLAGS })).toThrow(/contained no text/);
+	});
+});
+
+// Decoding a non-UTF-8 file as UTF-8 replaces every undecodable byte with
+// U+FFFD, and the result is still non-empty text, so the command would report
+// success while writing mojibake. The reader refuses instead of guessing an
+// encoding — same reasoning as the empty-file rule.
+describe("resolveTextOption — file encoding", () => {
+	const MARKDOWN = "# Repro\n\nAccented: café\n";
+
+	it("rejects a UTF-16LE file, naming the byte-order mark rather than just 'invalid'", () => {
+		const path = writeBytes("utf16le.md", Buffer.from(`﻿${MARKDOWN}`, "utf16le"));
+		try {
+			resolveTextOption({ file: path, ...FLAGS });
+			throw new Error("expected resolveTextOption to throw");
+		} catch (e) {
+			expect((e as ValidationError).name).toBe("ValidationError");
+			expect((e as ValidationError).message).toContain("--description-file");
+			expect((e as ValidationError).message).toContain(path);
+			expect((e as ValidationError).message).toContain("UTF-16");
+			expect((e as ValidationError).suggestion).toMatch(/utf8|UTF-8/);
+		}
+	});
+
+	it("rejects a UTF-16BE file the same way", () => {
+		const path = writeBytes("utf16be.md", Buffer.from(`﻿${MARKDOWN}`, "utf16le").swap16());
+		try {
+			resolveTextOption({ file: path, ...FLAGS });
+			throw new Error("expected resolveTextOption to throw");
+		} catch (e) {
+			expect((e as ValidationError).name).toBe("ValidationError");
+			expect((e as ValidationError).message).toContain("UTF-16");
+		}
+	});
+
+	// No BOM to name here — just bytes that cannot be UTF-8.
+	it("rejects a latin-1 file with accented characters as invalid UTF-8", () => {
+		const path = writeBytes("latin1.md", Buffer.from("# Café résumé naïve\n", "latin1"));
+		try {
+			resolveTextOption({ file: path, ...FLAGS });
+			throw new Error("expected resolveTextOption to throw");
+		} catch (e) {
+			expect((e as ValidationError).name).toBe("ValidationError");
+			expect((e as ValidationError).message).toContain("--description-file");
+			expect((e as ValidationError).message).toContain(path);
+			expect((e as ValidationError).message).toMatch(/not valid UTF-8/i);
+			expect((e as ValidationError).suggestion).toMatch(/utf8|UTF-8/);
+		}
+	});
+
+	// A UTF-8 BOM is valid UTF-8 and is what Windows PowerShell writes for
+	// `-Encoding utf8`, so it is accepted — but the marker itself is dropped,
+	// because a leading U+FEFF stops the first line parsing as a heading.
+	it("accepts a UTF-8 file with a BOM and strips the marker", () => {
+		const path = writeBytes("utf8-bom.md", Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(MARKDOWN)]));
+		expect(resolveTextOption({ file: path, ...FLAGS })).toBe(MARKDOWN);
+	});
+
+	it("accepts a UTF-8 file without a BOM, unchanged", () => {
+		const path = writeBytes("utf8.md", Buffer.from(MARKDOWN));
+		expect(resolveTextOption({ file: path, ...FLAGS })).toBe(MARKDOWN);
+	});
+
+	it("passes multi-byte UTF-8 through untouched", () => {
+		const text = "Protein å→β, 温度 37 °C, emoji 🧬, math ∑∆\n";
+		const path = writeBytes("multibyte.md", Buffer.from(text, "utf8"));
+		const resolved = resolveTextOption({ file: path, ...FLAGS });
+		expect(resolved).toBe(text);
+		expect(Buffer.from(resolved as string, "utf8")).toEqual(Buffer.from(text, "utf8"));
 	});
 });
 
