@@ -22,7 +22,7 @@ from pathlib import Path
 import pytest
 
 BRIDGE_PATH = Path(__file__).resolve().parents[2] / "bridges" / "slack" / "bridge.py"
-THREAD_KEY = "ELN-880:is-this-done"
+THREAD_KEY = "ENG-880:is-this-done"
 
 
 @pytest.fixture
@@ -61,7 +61,7 @@ def seed_question(mod, *, age_days: float, thread_key: str = THREAD_KEY, last_fo
                 "pending_questions": [
                     {
                         "thread_key": thread_key,
-                        "issue_id": "ELN-880",
+                        "issue_id": "ENG-880",
                         "question_text": "Is this done?",
                     }
                 ],
@@ -212,7 +212,7 @@ def test_dropping_a_question_is_reported_on_stderr(bridge, monkeypatch, capsys):
     monkeypatch.setattr(bridge, "_slack_thread_replies", lambda *a, **k: [])
 
     bridge.cmd_resolve(dry_run=False)
-    assert "ELN-880" in capsys.readouterr().err
+    assert "ENG-880" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------------
@@ -333,7 +333,7 @@ def test_state_change_applies_at_exactly_the_threshold(bridge, jev, effects, mon
     jev.answer = jev_answer(choice, 0.95)
 
     assert bridge.cmd_resolve(dry_run=False) == 0
-    assert effects["updates"] == [("ELN-880", target)]
+    assert effects["updates"] == [("ENG-880", target)]
     assert pending_keys(bridge) == []
 
 
@@ -361,13 +361,13 @@ def test_confident_answer_from_a_non_jev_model_changes_nothing(bridge, jev, effe
 
 
 def test_apply_moves_the_issue_to_the_proposed_state(bridge, jev, effects, monkeypatch):
-    key = 'ELN-880:{"type":"set_state","from":"Todo","to":"In Progress"}'
+    key = 'ENG-880:{"type":"set_state","from":"Todo","to":"In Progress"}'
     seed_question(bridge, age_days=1, thread_key=key)
     reply_with(bridge, monkeypatch, "yes")
     jev.answer = jev_answer("apply", 0.99)
 
     bridge.cmd_resolve(dry_run=False)
-    assert effects["updates"] == [("ELN-880", "In Progress")]
+    assert effects["updates"] == [("ENG-880", "In Progress")]
 
 
 def test_follow_up_is_not_repeated_until_the_person_replies_again(bridge, jev, effects, monkeypatch):

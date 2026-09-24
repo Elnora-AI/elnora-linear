@@ -89,7 +89,7 @@ describe("summarizeDescription", () => {
 		expect(summarizeDescription("short body")).toBe("short body");
 	});
 
-	// The regression this exists for. ELN-1255 was a 1,343-char description whose
+	// The regression this exists for: a 1,343-char description whose
 	// "## Done criteria" began at char 1,094: a flat slice(0, 600) meant the curator
 	// never saw a single criterion, so it asked a human instead of deciding.
 	it("keeps done criteria that fall outside the head window", () => {

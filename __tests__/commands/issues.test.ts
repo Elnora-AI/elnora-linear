@@ -151,7 +151,7 @@ describe("validateBulkOpKeys", () => {
 		expect(() =>
 			validateBulkOpKeys([
 				{ kind: "update", id: "ENG-1", state: "Done", priority: 1 },
-				{ kind: "create", title: "x", team: "ENG", assignee: "Risto" },
+				{ kind: "create", title: "x", team: "ENG", assignee: "Alex" },
 				{ kind: "comment", issue: "ENG-2", body: "hi" },
 				{ kind: "relate", from: "ENG-1", to: "ENG-2", type: "duplicate" },
 				{ kind: "archive", id: "ENG-3" },
@@ -203,13 +203,13 @@ describe("buildBulkUpdateInput", () => {
 	const maps = {
 		idMap: { "ENG-1": "uuid-1", "ENG-9": "uuid-9" },
 		stateMap: { "ENG:Done": "state-done" },
-		assigneeMap: { "Risto Jamul": "user-risto" },
+		assigneeMap: { "Alex Doe": "user-alex" },
 		projectMap: { Platform: "proj-1" },
 	};
 
 	it("resolves assignee, which the update branch used to ignore entirely", () => {
-		expect(buildBulkUpdateInput({ kind: "update", id: "ENG-1", assignee: "Risto Jamul" }, maps, "ENG", 0)).toEqual({
-			assigneeId: "user-risto",
+		expect(buildBulkUpdateInput({ kind: "update", id: "ENG-1", assignee: "Alex Doe" }, maps, "ENG", 0)).toEqual({
+			assigneeId: "user-alex",
 		});
 	});
 
