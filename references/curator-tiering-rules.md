@@ -23,7 +23,7 @@ Any one of these fires the HIGH tier. The curator updates state via `elnora-line
 - Criteria demonstrably **not** met → do NOT fire HIGH. A PR referencing an issue is not a claim that it finished it; PRs routinely name every issue they touch. Report it, naming the criterion still outstanding.
 - Cannot tell from the evidence → MEDIUM, and put the specific unresolved criterion in the question instead of asking "is this done?".
 
-Worked example: PR #1864 named both ELN-1255 and ELN-1256. It satisfied ELN-1255 — the grep trace it fixed is the one in that issue — but not ELN-1256, whose criterion is "a file read once is never re-read", which needs a read cache the PR does not add. Closing both because both were named would have been wrong in one of the two.
+Worked example: a PR names both ENG-101 and ENG-102. It satisfies ENG-101 — the error trace it fixes is the one in that issue — but not ENG-102, whose criterion is "a file read once is never re-read", which needs a read cache the PR does not add. Closing both because both were named would be wrong in one of the two.
 
 ## MEDIUM — ask in Slack (cap: 10 per run)
 

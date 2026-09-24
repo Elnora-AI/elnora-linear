@@ -78,8 +78,8 @@ export const SIGNAL_PAYLOAD_CHARS_WITH_EXCERPT = 900;
  * Reduce a description to what the curator actually needs to judge state.
  *
  * A flat `slice(0, 600)` kept the problem statement and dropped the acceptance
- * bar, because done criteria are written last. ELN-1255 is the worked example:
- * a 1,343-char description whose `## Done criteria` began at char 1,094, so the
+ * bar, because done criteria are written last. The worked example is a
+ * 1,343-char description whose `## Done criteria` began at char 1,094, so the
  * curator never saw a single criterion and had no option but to ask a human
  * whether a merged PR had satisfied them.
  *
