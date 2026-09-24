@@ -1,14 +1,13 @@
 // `elnora-linear curator-run` — collect signals, build a snapshot, call the
 // LLM rule engine, dispatch HIGH/MEDIUM/LOW actions per tier.
 //
-// Without OPENROUTER_API_KEY or ANTHROPIC_API_KEY (or with --collect-only), the
-// curator stays in diagnostic mode and just reports collected signals. With a
-// key set the
-// full pipeline runs:
+// Without an LLM key (or with --collect-only), the curator stays in diagnostic
+// mode and just reports collected signals. Any LLM key works — see
+// resolveLlmProvider in curator/llm.ts. With a key set the full pipeline runs:
 //   1. Collect signals from every enabled source.
 //   2. List open issues for curator-active teams via bulk-graphql.
 //   3. Build a markdown snapshot.
-//   4. Call Anthropic with the curator system prompt.
+//   4. Call the model with the curator system prompt.
 //   5. Dispatch the actions (HIGH auto-apply, MEDIUM queue, LOW report).
 //   6. Persist state + append jsonl report.
 
@@ -108,9 +107,8 @@ export async function runCurator(opts: CuratorOptions): Promise<CuratorReport> {
 
 function shouldRunLlm(opts: CuratorOptions): { run: true } | { run: false; reason: string } {
 	if (opts.collectOnly) return { run: false, reason: "--collect-only passed" };
-	if (!resolveLlmProvider()) {
-		return { run: false, reason: "neither OPENROUTER_API_KEY nor ANTHROPIC_API_KEY set" };
-	}
+	const llm = resolveLlmProvider();
+	if (llm.problem) return { run: false, reason: llm.problem };
 	return { run: true };
 }
 

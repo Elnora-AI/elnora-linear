@@ -2,7 +2,7 @@
 
 `elnora-linear curator-run` is a single command. To run it on a recurring schedule, point your OS scheduler at it. The curator is idempotent — it locks its state file, so two concurrent runs cannot corrupt each other.
 
-All examples below assume `elnora-linear` is on `PATH` (`npm install -g @elnora-ai/linear`) and that `LINEAR_API_KEY` is in `~/.config/elnora-linear/.env`. If you also want the LLM rule engine, set `ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY` in the same file or the scheduler's environment.
+All examples below assume `elnora-linear` is on `PATH` (`npm install -g @elnora-ai/linear`) and that `LINEAR_API_KEY` is in `~/.config/elnora-linear/.env`. If you also want the LLM rule engine, set your LLM key (any provider — see the README's Requirements table) in the same file or the scheduler's environment.
 
 ## macOS — launchd
 

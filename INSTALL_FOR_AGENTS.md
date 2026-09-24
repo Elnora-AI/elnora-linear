@@ -167,26 +167,36 @@ moving on.
 ### 4-pre. LLM key — the model that proposes Linear actions
 
 The curator collects signals, hands them to an LLM to propose state changes,
-and dispatches the safe ones. It takes either key:
+and dispatches the safe ones. Any LLM key drives it. The curator picks the
+provider from the key it finds, in this order:
 
-- `ANTHROPIC_API_KEY` — calls Anthropic directly (default model
-  `claude-sonnet-4-6`).
-- `OPENROUTER_API_KEY` — calls the same models through OpenRouter (default
-  model `anthropic/claude-sonnet-5`). The Jev check before a HIGH action
-  auto-applies already needs this key, so a user who has it needs nothing
-  else. When both keys are set, OpenRouter is used.
+| Key | Provider | Default model |
+|---|---|---|
+| `OPENROUTER_API_KEY` | OpenRouter | `anthropic/claude-sonnet-5` |
+| `ANTHROPIC_API_KEY` | Anthropic | `claude-sonnet-4-6` |
+| `OPENAI_API_KEY` | OpenAI | `gpt-5` |
+| `GEMINI_API_KEY` or `GOOGLE_GENERATIVE_AI_API_KEY` | Google | `gemini-flash-latest` |
+| `GROQ_API_KEY` | Groq | `openai/gpt-oss-120b` |
+| `DEEPSEEK_API_KEY` | DeepSeek | `deepseek-chat` |
+| `XAI_API_KEY` | xAI | `grok-4.7` |
+| `MISTRAL_API_KEY` | Mistral | `mistral-large-latest` |
+| `LLM_BASE_URL` + `LLM_API_KEY` | any OpenAI-compatible endpoint (Azure OpenAI, Together, Fireworks, LiteLLM, a self-hosted vLLM or Ollama) | none; `LINEAR_CURATOR_MODEL` is required |
 
-`LINEAR_CURATOR_MODEL` overrides the model on either path. Without either key the curator silently
-drops into `--collect-only` diagnostic mode (no LLM call, no mutations) — the
-user will wonder for days why HIGH-tier actions aren't applying. Collect it
-now, before walking the file-config steps.
+`LINEAR_CURATOR_MODEL` overrides the model on any path; `LLM_PROVIDER` chooses
+when several keys are set. The Jev check before a HIGH action auto-applies
+needs `OPENROUTER_API_KEY` specifically (see substep 5 of the Slack bridge),
+so a user who has that key needs nothing else. Without any key the curator
+silently drops into `--collect-only` diagnostic mode (no LLM call, no
+mutations) — the user will wonder for days why HIGH-tier actions aren't
+applying. Collect it now, before walking the file-config steps.
 
 Tell the user, verbatim:
 
 > The curator uses an LLM to read your signals and propose Linear changes.
-> I need an Anthropic API key (https://console.anthropic.com/settings/keys,
-> starts with `sk-ant-`) or an OpenRouter API key
-> (https://openrouter.ai/keys, starts with `sk-or-`). Which do you have?
+> Any LLM API key works: OpenRouter (https://openrouter.ai/keys, starts with
+> `sk-or-`), Anthropic (https://console.anthropic.com/settings/keys, starts
+> with `sk-ant-`), OpenAI, Google Gemini, Groq, DeepSeek, xAI, Mistral, or
+> any OpenAI-compatible endpoint you host yourself. Which do you have?
 > Create one, copy the value, and paste it here.
 
 If the user already set `OPENROUTER_API_KEY` for Jev, skip this step: the
@@ -204,10 +214,12 @@ above if the MCP isn't connected or the user declines.
 
 When the user pastes it, set the env var AND append it to the same `.env`
 file the Linear key lives in (the CLI auto-loads that file on startup, so the
-key survives the next shell):
+key survives the next shell). `KEY_NAME` is the variable from the table
+above for the provider they chose; a self-hosted endpoint needs
+`LLM_BASE_URL`, `LLM_API_KEY` and `LINEAR_CURATOR_MODEL` on their own lines:
 
 ```sh
-KEY_NAME=ANTHROPIC_API_KEY   # or OPENROUTER_API_KEY for an sk-or- key
+KEY_NAME=OPENROUTER_API_KEY   # or ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, …
 KEY_VALUE="<paste>"
 umask 077
 printf '%s=%s\n' "$KEY_NAME" "$KEY_VALUE" >> ~/.config/elnora-linear/.env
@@ -215,9 +227,10 @@ chmod 600 ~/.config/elnora-linear/.env
 ```
 
 Gates:
-- The value must start with `sk-ant-` (Anthropic) or `sk-or-` (OpenRouter),
-  matching `KEY_NAME`. If it doesn't, ask the user to paste again — they may
-  have grabbed the wrong field.
+- The prefix must match `KEY_NAME` where the provider uses one: `sk-or-`
+  (OpenRouter), `sk-ant-` (Anthropic), `sk-` (OpenAI), `gsk_` (Groq),
+  `xai-` (xAI). If it doesn't, ask the user to paste again — they may have
+  grabbed the wrong field.
 - `stat` on `~/.config/elnora-linear/.env` must still report mode `600` after
   the append. Re-`chmod 600` if not.
 - If the user refuses (e.g. "I'll add this later"), note loudly that the
@@ -656,7 +669,7 @@ Gates:
     ```
 
     Gate: the report's `pipeline.ranLlm` field is `true`. If it reports
-    `skippedReason: "neither OPENROUTER_API_KEY nor ANTHROPIC_API_KEY set"`, the env file didn't load
+    `skippedReason: "no LLM key set; …"`, the env file didn't load
     — confirm the key is on its own line in `~/.config/elnora-linear/.env`
     and re-run.
 
@@ -706,7 +719,7 @@ finish it before reporting done.
    `warning:` payloads for sources the user enabled.
 7. If the user provided an LLM key in Step 4-pre: a one-off
    `elnora-linear curator-run --dry-run` report shows
-   `pipeline.ranLlm: true` (not `skippedReason: "neither OPENROUTER_API_KEY nor ANTHROPIC_API_KEY set"`).
+   `pipeline.ranLlm: true` (not `skippedReason: "no LLM key set; …"`).
 8. If the user populated `repos.json`: `gh auth status` exits 0 in the
    same shell that will run the curator, AND every entry with a
    `local_path` points at a real `.git` working tree.
