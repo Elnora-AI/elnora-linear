@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.1](https://github.com/Elnora-AI/elnora-linear/compare/v2.4.0...v2.4.1) (2026-09-25)
+
+
+### Bug Fixes
+
+* **curator:** reasoning stays off on the OpenRouter route ([#155](https://github.com/Elnora-AI/elnora-linear/issues/155)) ([b193920](https://github.com/Elnora-AI/elnora-linear/commit/b193920575fb7a5b219817e650ab25dbeff23486))
+
 ## [2.4.0](https://github.com/Elnora-AI/elnora-linear/compare/v2.3.0...v2.4.0) (2026-09-24)
 
 
