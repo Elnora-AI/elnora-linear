@@ -326,12 +326,18 @@ async function chatCompletionsText(
 	}
 	// OpenAI's reasoning models reject max_tokens; everyone else still expects it.
 	const budget = p.name === "openai" ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens };
+	// OpenRouter switches reasoning on for models that support it. The snapshot runs to
+	// 200k tokens, and on 2026-09-24 anthropic/claude-sonnet-5 spent the whole 16k output
+	// budget thinking about it and returned no text. The curator wants the JSON, not the
+	// deliberation, so reasoning is off for every model on that route.
+	const reasoning = p.name === "openrouter" ? { reasoning: { enabled: false } } : {};
 	const res = await fetch(`${(p.baseURL ?? "").replace(/\/+$/, "")}/chat/completions`, {
 		method: "POST",
 		headers,
 		body: JSON.stringify({
 			model: p.model,
 			...budget,
+			...reasoning,
 			messages: [
 				{ role: "system", content: system },
 				{ role: "user", content: user },
