@@ -176,6 +176,8 @@ describe("LLM provider selection", () => {
 		expect(fetchCalls[0].headers["X-Title"]).toBe("elnora-linear");
 		expect(fetchCalls[0].body.model).toBe("anthropic/claude-sonnet-5");
 		expect(fetchCalls[0].body.max_tokens).toBe(16384);
+		// OpenRouter would otherwise let the model think through the whole output budget.
+		expect(fetchCalls[0].body.reasoning).toEqual({ enabled: false });
 	});
 
 	it("uses the Anthropic SDK when only ANTHROPIC_API_KEY is set", async () => {
@@ -213,6 +215,7 @@ describe("LLM provider selection", () => {
 		await callCuratorLlm("snapshot");
 		expect(fetchCalls[0].body.max_completion_tokens).toBe(16384);
 		expect(fetchCalls[0].body.max_tokens).toBeUndefined();
+		expect(fetchCalls[0].body.reasoning).toBeUndefined();
 	});
 
 	it("LLM_PROVIDER picks between several keys", () => {
