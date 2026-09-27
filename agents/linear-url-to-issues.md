@@ -60,6 +60,14 @@ save: it inserts blank lines and rewrites `-` bullets as `*`. Prose survives, bu
 whitespace-sensitive may not, and the length grows. Verify the stored text, not the text you
 sent.
 
+It also turns anything shaped like a link into one, which is the larger growth: a full URL
+`u` is stored as `[u](<u>)` (its length plus 6), and a bare domain or a file name whose
+extension is also a country domain (`example.com`, `prompts.py`, `reader.py:601`) as
+`[t](<http://t>)` (its length plus 13). When a description has a length limit, count
+characters, never bytes: `wc -c` counts `—`, `·` and `→` as 3 each. Count with
+`python3 -c "import sys; print(len(open(sys.argv[1], encoding='utf-8').read()))" body.md`
+(`python` on Windows), and count the stored text again after the write.
+
 ```bash
 elnora-linear context --team "Team"        # cold-start primitive: projects+statuses, states, labels by prefix, members
 elnora-linear issues search "terms" [--limit N]

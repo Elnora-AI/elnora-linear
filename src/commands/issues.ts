@@ -26,9 +26,11 @@ import {
 import { handleAsyncCommand, outputSuccess } from "../output/index.js";
 import {
 	CliError,
+	collectPlaceholders,
 	fetchAllNodes,
 	findIssueByIdentifier,
 	getTeamLabelPolicy,
+	isPlaceholder,
 	LabelValidationError,
 	NotFoundError,
 	ProjectValidationError,
@@ -37,9 +39,11 @@ import {
 	parseLimit,
 	parsePositiveInt,
 	parsePriority,
+	placeholdersIn,
 	requireNonEmptyUpdate,
 	requireYes,
 	resolveLabels,
+	resolvePlaceholders,
 	resolveProject,
 	resolveState,
 	resolveTeam,
@@ -101,6 +105,7 @@ export function resolveBulkOpTeamKey(
 export const BULK_OP_ALLOWED_KEYS: Record<string, readonly string[]> = {
 	create: [
 		"kind",
+		"id",
 		"title",
 		"team",
 		"description",
@@ -772,7 +777,7 @@ export function setupIssuesCommand(program: Command): void {
 	issues
 		.command("batch-create <jsonFile>")
 		.description(
-			"Create multiple issues from a JSON array (or '-' for stdin). Each item accepts friendly names (team, project, assignee, labels, state) or raw IDs (teamId, projectId, assigneeId, labelIds, stateId); names are resolved like `issues create`. Cap 50. N>=10 requires --yes. Use --dry-run to preview the resolved plan without creating. See references/cli-reference.md.",
+			"Create multiple issues from a JSON array (or '-' for stdin). Each item accepts friendly names (team, project, assignee, labels, state) or raw IDs (teamId, projectId, assigneeId, labelIds, stateId); names are resolved like `issues create`. An item with id \"new:1\" has that placeholder rewritten to its identifier wherever the batch's titles and descriptions mention it. Cap 50. N>=10 requires --yes. Use --dry-run to preview the resolved plan without creating. See references/cli-reference.md.",
 		)
 		.option("--yes", "Confirm batch creation when N >= 10")
 		.option("--dry-run", "Resolve names and print the plan without creating any issues")
@@ -793,12 +798,24 @@ export function setupIssuesCommand(program: Command): void {
 						"Re-run with --yes to confirm, or --dry-run to preview.",
 					);
 				}
+				const declared = collectPlaceholders(
+					records,
+					() => true,
+					(i) => `Issue #${i + 1}`,
+				);
 				const client = await getClient();
 				const plan = await resolveFriendlyBatchInputs(client, records);
 				const inputs = plan.map((p) => p.input);
 
 				if (opts.dryRun) {
-					outputSuccess({ dryRun: true, count: plan.length, issues: plan.map((p) => p.display) });
+					outputSuccess({
+						dryRun: true,
+						count: plan.length,
+						issues: plan.map((p) => p.display),
+						...(declared.size > 0 && {
+							placeholders: Object.fromEntries([...declared].map(([p, i]) => [p, `Issue #${i + 1}`])),
+						}),
+					});
 					return;
 				}
 
@@ -824,9 +841,38 @@ export function setupIssuesCommand(program: Command): void {
 				const payload = await client.createIssueBatch({ issues: inputs });
 				if (!payload.success) throw new CliError("Failed to create issue batch");
 				const issues = await payload.issues;
+				if (declared.size === 0) {
+					outputSuccess({
+						created: issues?.length ?? inputs.length,
+						ids: issues?.map((i: { identifier: string }) => i.identifier) ?? [],
+					});
+					return;
+				}
+
+				// Linear returns the batch in the order submitted, so record i is issues[i].
+				const identifiers = new Map([...declared].map(([p, i]) => [p, issues[i].identifier]));
+				const mutations: MutationOp[] = [];
+				records.forEach((record, i) => {
+					if (placeholdersIn(`${record.title}\n${record.description ?? ""}`).length === 0) return;
+					const { item } = resolvePlaceholders(record, identifiers);
+					mutations.push({
+						alias: `resolve${i}`,
+						field: "issueUpdate",
+						vars: {
+							id: { type: "String!", value: issues[i].id },
+							input: { type: "IssueUpdateInput!", value: { title: item.title, description: item.description } },
+						},
+						selection: "success",
+					});
+				});
+				const results = await batchMutations(mutations);
+				const failed = results.filter((r) => !r.ok);
 				outputSuccess({
-					created: issues?.length ?? inputs.length,
-					ids: issues?.map((i: { identifier: string }) => i.identifier) ?? [],
+					created: issues.length,
+					ids: issues.map((i: { identifier: string }) => i.identifier),
+					placeholders: Object.fromEntries(identifiers),
+					resolved: results.length - failed.length,
+					failures: failed,
 				});
 			}),
 		);
@@ -929,7 +975,7 @@ export function setupIssuesCommand(program: Command): void {
 	issues
 		.command("bulk-ops <opsFile>")
 		.description(
-			'Execute a JSON file of bulk operations as batched GraphQL mutations. Each op is an object with a "kind" field: create | update | relate | comment | label-add | label-remove | archive. Example: [{"kind":"update","id":"ENG-1","state":"Done"}]. Pass \'-\' to read from stdin. See references/cli-reference.md for the full schema.',
+			'Execute a JSON file of bulk operations as batched GraphQL mutations. Each op is an object with a "kind" field: create | update | relate | comment | label-add | label-remove | archive. Example: [{"kind":"update","id":"ENG-1","state":"Done"}]. A create with "id": "new:1" lets later ops and any text refer to the issue it makes. Pass \'-\' to read from stdin. See references/cli-reference.md for the full schema.',
 		)
 		.requiredOption("--team <team>", "Team key for state-name resolution (e.g. ENG)")
 		.option("--batch-size <n>", "Mutations per HTTP request (default 10)", "10")
@@ -963,6 +1009,11 @@ export function setupIssuesCommand(program: Command): void {
 				}
 
 				validateBulkOpKeys(opsList);
+				const declared = collectPlaceholders(
+					opsList,
+					(op) => op.kind === "create",
+					(i) => `Op #${i}`,
+				);
 
 				const idSet = new Set<string>();
 				const stateNames = new Set<string>();
@@ -1036,12 +1087,18 @@ export function setupIssuesCommand(program: Command): void {
 						return out;
 					})(),
 				]);
+				// An update aimed at `new:N` takes its state from the team of the create that declares it,
+				// which is the team whose key its identifier will carry.
+				const stateTeamKey = (op: Record<string, unknown>): string =>
+					isPlaceholder(op.id) && op.kind === "update"
+						? resolveBulkOpTeamKey(opsList[declared.get(op.id) as number], teamMap, defaultTeamKey)
+						: resolveBulkOpTeamKey(op, teamMap, defaultTeamKey);
 				const stateMap: Record<string, string> = {};
 				const stateLookupTasks: Array<Promise<void>> = [];
 				const stateRequests = new Set<string>();
 				for (const op of opsList) {
 					if (typeof op.state !== "string") continue;
-					const teamKey = resolveBulkOpTeamKey(op, teamMap, defaultTeamKey);
+					const teamKey = stateTeamKey(op);
 					const key = `${teamKey}:${op.state}`;
 					if (stateRequests.has(key)) continue;
 					stateRequests.add(key);
@@ -1098,8 +1155,7 @@ export function setupIssuesCommand(program: Command): void {
 
 				const mutations: MutationOp[] = [];
 				const plan: Array<Record<string, unknown>> = [];
-				for (let i = 0; i < opsList.length; i++) {
-					const op = opsList[i];
+				const addOp = (op: Record<string, unknown>, i: number, alias = `op${i}`): void => {
 					const kind = op.kind;
 					if (kind === "create") {
 						if (typeof op.title !== "string") throw new ValidationError(`Op #${i}: create requires title`);
@@ -1120,23 +1176,18 @@ export function setupIssuesCommand(program: Command): void {
 						if (typeof op.parent === "string") input.parentId = idMap[op.parent];
 						if (typeof op.assignee === "string") input.assigneeId = assigneeMap[op.assignee];
 						mutations.push({
-							alias: `op${i}`,
+							alias,
 							field: "issueCreate",
 							vars: { input: { type: "IssueCreateInput!", value: input } },
-							selection: "success issue { identifier }",
+							selection: "success issue { id identifier }",
 						});
-						plan.push({ alias: `op${i}`, kind: "create", title: op.title, input });
+						plan.push({ alias, kind: "create", title: op.title, input });
 					} else if (kind === "update") {
 						const id = idMap[op.id as string];
 						if (!id) throw new ValidationError(`Op #${i}: unknown issue ${op.id}`);
-						const input = buildBulkUpdateInput(
-							op,
-							{ idMap, stateMap, assigneeMap, projectMap },
-							resolveBulkOpTeamKey(op, teamMap, defaultTeamKey),
-							i,
-						);
+						const input = buildBulkUpdateInput(op, { idMap, stateMap, assigneeMap, projectMap }, stateTeamKey(op), i);
 						mutations.push({
-							alias: `op${i}`,
+							alias,
 							field: "issueUpdate",
 							vars: {
 								id: { type: "String!", value: id },
@@ -1144,14 +1195,14 @@ export function setupIssuesCommand(program: Command): void {
 							},
 							selection: "success issue { identifier }",
 						});
-						plan.push({ alias: `op${i}`, kind: "update", id: op.id, input });
+						plan.push({ alias, kind: "update", id: op.id, input });
 					} else if (kind === "relate") {
 						const fromId = idMap[op.from as string];
 						const toId = idMap[op.to as string];
 						const rtype = (op.type as string) || "related";
 						if (!fromId || !toId) throw new ValidationError(`Op #${i}: unknown issue in relate`);
 						mutations.push({
-							alias: `op${i}`,
+							alias,
 							field: "issueRelationCreate",
 							vars: {
 								input: {
@@ -1161,7 +1212,7 @@ export function setupIssuesCommand(program: Command): void {
 							},
 							selection: "success issueRelation { id type }",
 						});
-						plan.push({ alias: `op${i}`, kind: "relate", from: op.from, to: op.to, type: rtype });
+						plan.push({ alias, kind: "relate", from: op.from, to: op.to, type: rtype });
 					} else if (kind === "comment") {
 						// Accept `id` as an alias for `issue`: every other op that targets a single
 						// issue keys it as `id`, so callers reach for that first.
@@ -1173,7 +1224,7 @@ export function setupIssuesCommand(program: Command): void {
 						if (!issueId) throw new ValidationError(`Op #${i}: unknown issue ${target}`);
 						if (typeof op.body !== "string") throw new ValidationError(`Op #${i}: comment requires body`);
 						mutations.push({
-							alias: `op${i}`,
+							alias,
 							field: "commentCreate",
 							vars: {
 								input: {
@@ -1183,7 +1234,7 @@ export function setupIssuesCommand(program: Command): void {
 							},
 							selection: "success comment { id }",
 						});
-						plan.push({ alias: `op${i}`, kind: "comment", issue: target });
+						plan.push({ alias, kind: "comment", issue: target });
 					} else if (kind === "label-add" || kind === "label-remove") {
 						const issueId = idMap[op.issue as string];
 						const labelId = labelMap[op.label as string];
@@ -1191,7 +1242,7 @@ export function setupIssuesCommand(program: Command): void {
 						if (!labelId) throw new ValidationError(`Op #${i}: unknown label ${op.label}`);
 						const field = kind === "label-add" ? "issueAddLabel" : "issueRemoveLabel";
 						mutations.push({
-							alias: `op${i}`,
+							alias,
 							field,
 							vars: {
 								id: { type: "String!", value: issueId },
@@ -1199,35 +1250,77 @@ export function setupIssuesCommand(program: Command): void {
 							},
 							selection: "success",
 						});
-						plan.push({ alias: `op${i}`, kind, issue: op.issue, label: op.label });
+						plan.push({ alias, kind, issue: op.issue, label: op.label });
 					} else if (kind === "archive") {
 						const id = idMap[op.id as string];
 						if (!id) throw new ValidationError(`Op #${i}: unknown issue ${op.id}`);
 						mutations.push({
-							alias: `op${i}`,
+							alias,
 							field: "issueArchive",
 							vars: { id: { type: "String!", value: id } },
 							selection: "success",
 						});
-						plan.push({ alias: `op${i}`, kind: "archive", id: op.id });
+						plan.push({ alias, kind: "archive", id: op.id });
 					} else {
 						throw new ValidationError(`Op #${i}: unknown kind "${kind}"`);
 					}
-				}
-
-				if (opts.dryRun) {
-					outputSuccess({ resolved: plan.length, plan });
-					return;
-				}
+				};
 
 				const batchSize = parseInt(opts.batchSize as string, 10) || 10;
-				const results = await batchMutations(mutations, { batchSize });
+				let results: Awaited<ReturnType<typeof batchMutations>>;
+				let placeholders: Record<string, string> | undefined;
+				if (declared.size === 0 || opts.dryRun) {
+					// A dry run has no identifiers yet, so its plan shows each placeholder as written.
+					for (const p of declared.keys()) idMap[p] = p;
+					for (const [i, op] of opsList.entries()) addOp(op, i);
+					if (opts.dryRun) {
+						outputSuccess({ resolved: plan.length, plan });
+						return;
+					}
+					results = await batchMutations(mutations, { batchSize });
+				} else {
+					// Creates first: every other op, and every text that mentions `new:N`, needs
+					// the identifier Linear assigns on create.
+					for (const [i, op] of opsList.entries()) if (op.kind === "create") addOp(op, i);
+					const created = await batchMutations(mutations, { batchSize });
+					const identifiers = new Map<string, string>();
+					for (const [p, i] of declared) {
+						const data = created.find((r) => r.alias === `op${i}` && r.ok)?.data as
+							| { issue?: { id: string; identifier: string } }
+							| undefined;
+						const issue = data?.issue;
+						if (!issue) continue;
+						identifiers.set(p, issue.identifier);
+						idMap[issue.identifier] = issue.id;
+					}
+					mutations.length = 0;
+					const skipped: typeof created = [];
+					opsList.forEach((op, i) => {
+						let next = op;
+						if (op.kind === "create") {
+							// A create that mentions a placeholder went out with it; rewrite its text now.
+							if (!isPlaceholder(op.id) || !identifiers.has(op.id)) return;
+							if (placeholdersIn(`${op.title}\n${op.description ?? ""}`).length === 0) return;
+							next = { kind: "update", id: op.id, title: op.title, description: op.description };
+						}
+						const { item, missing } = resolvePlaceholders(next, identifiers);
+						const alias = op.kind === "create" ? `op${i}_resolve` : `op${i}`;
+						if (missing.length > 0) {
+							skipped.push({ alias, ok: false, error: `skipped: ${missing.join(", ")} was not created` });
+							return;
+						}
+						addOp(item, i, alias);
+					});
+					results = [...created, ...(await batchMutations(mutations, { batchSize })), ...skipped];
+					placeholders = Object.fromEntries(identifiers);
+				}
 				const failed = results.filter((r) => !r.ok);
 				outputSuccess({
 					executed: results.length,
 					succeeded: results.length - failed.length,
 					failed: failed.length,
 					failures: failed,
+					...(placeholders && { placeholders }),
 				});
 				if (opts.stats) printRateLimitStats("bulk-ops");
 			}),

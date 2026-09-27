@@ -115,13 +115,13 @@ issues subscribe ENG-123
 issues unsubscribe ENG-123
 issues add-label ENG-123 "Type: feature"
 issues remove-label ENG-123 "Layer: frontend"
-issues batch-create <jsonFile|->  # JSON array; cap 50; --yes when N>=10; --dry-run previews the resolved plan. Each item takes friendly names (team, project, assignee, labels, state) OR raw IDs (teamId, projectId, assigneeId, labelIds, stateId) — names resolve like single-issue create. labels = string[] or "a,b". priority = number or string. parent = "ENG-12". PREFER THIS over a shell loop of single creates.
+issues batch-create <jsonFile|->  # JSON array; cap 50; --yes when N>=10; --dry-run previews the resolved plan. Each item takes friendly names (team, project, assignee, labels, state) OR raw IDs (teamId, projectId, assigneeId, labelIds, stateId) — names resolve like single-issue create. labels = string[] or "a,b". priority = number or string. parent = "ENG-12". id = "new:1" names the issue before it exists: every "new:1" in any title or description of the batch is rewritten to the created identifier, and the output maps each placeholder to it. PREFER THIS over a shell loop of single creates.
 issues batch-update <ids> <jsonPatchFile|->  # ids = comma-separated ENG-X or UUIDs
 issues bulk-ops <jsonFile|->  # JSON array of ops, batched into GraphQL mutations. --dry-run shows the RESOLVED plan.
 
 # bulk-ops op schema — every key each kind reads. An unsupported key is now a hard
 # error; it used to be dropped silently while the op still reported success.
-#   {"kind":"create",       title, team, description, priority, dueDate, project, labels, state, parent, assignee, skipProjectCheck}
+#   {"kind":"create",       id, title, team, description, priority, dueDate, project, labels, state, parent, assignee, skipProjectCheck}
 #   {"kind":"update",       id, team, title, state, parent, description, priority, assignee, project, dueDate}
 #   {"kind":"relate",       from, to, type}                 # type: related|blocks|duplicate|similar
 #   {"kind":"comment",      issue (or id), body}
@@ -138,6 +138,14 @@ issues bulk-ops <jsonFile|->  # JSON array of ops, batched into GraphQL mutation
 #   empty mutation that Linear answers with `success`.
 # - Setting state to a duplicate state requires a duplicate RELATION to exist
 #   first — create it with `relations create <dup> <canonical> --type duplicate`.
+# - `new:N` placeholders: a create declares one with `"id": "new:1"`. Any op may then
+#   target it (id, from, to, issue, parent on update) and any title, description or
+#   body may mention it. The creates run first; every placeholder is then rewritten to
+#   the created identifier, including in the creates' own text, and the output maps
+#   each placeholder to its identifier. A mention nothing declares is refused before
+#   anything is written. A create cannot take a placeholder as its parent: set it with
+#   an update op. An op whose placeholder's create failed is skipped and listed in
+#   `failures`. --dry-run shows the placeholders unresolved.
 # - Batches abort together: if one op fails, siblings report `aborted: sibling op
 #   in same batch failed (opN: <reason>)`, naming the op that broke.
 
@@ -268,8 +276,10 @@ and Linux shells write UTF-8 already; convert an existing file with
 `iconv -f <encoding> -t UTF-8 in.md > body.md`.
 
 Reading a description back after writing it is still worth doing: Linear normalises markdown
-on save (it inserts blank lines and rewrites `-` bullets as `*`), so the stored text will not
-be byte-identical to the file.
+on save (it inserts blank lines, rewrites `-` bullets as `*`, and turns URLs, bare domains and
+file names like `prompts.py` or `reader.py:601` into links), so the stored text will not be
+byte-identical to the file, and is usually longer. Measure a length limit in characters, not
+bytes, and on the stored text.
 
 ## Argument Style — Positional vs Flag
 
