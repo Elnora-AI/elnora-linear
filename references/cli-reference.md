@@ -142,8 +142,9 @@ issues bulk-ops <jsonFile|->  # JSON array of ops, batched into GraphQL mutation
 #   target it (id, from, to, issue, parent on update) and any title, description or
 #   body may mention it. The creates run first; every placeholder is then rewritten to
 #   the created identifier, including in the creates' own text, and the output maps
-#   each placeholder to its identifier. A mention nothing declares is refused before
-#   anything is written. A create cannot take a placeholder as its parent: set it with
+#   each placeholder to its identifier. Once a batch declares one, a mention nothing
+#   declares is refused before anything is written; a batch that declares none sends
+#   its text as written. A create cannot take a placeholder as its parent: set it with
 #   an update op. An op whose placeholder's create failed is skipped and listed in
 #   `failures`. --dry-run shows the placeholders unresolved.
 # - Batches abort together: if one op fails, siblings report `aborted: sibling op

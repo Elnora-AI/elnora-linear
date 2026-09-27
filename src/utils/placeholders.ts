@@ -41,6 +41,9 @@ export function placeholdersOf(item: Record<string, unknown>): string[] {
  * declaration is malformed or repeated, when anything mentions a placeholder nothing
  * declares, and when a create names a new issue as its parent: every create in a batch
  * goes out before any placeholder has an identifier.
+ *
+ * A batch that declares nothing is left exactly as it was before placeholders existed:
+ * its text is sent as written. Callers that resolve `new:N` themselves rely on that.
  */
 export function collectPlaceholders(
 	items: Array<Record<string, unknown>>,
@@ -62,6 +65,7 @@ export function collectPlaceholders(
 		}
 		declared.set(item.id, i);
 	});
+	if (declared.size === 0) return declared;
 	items.forEach((item, i) => {
 		const undeclared = placeholdersOf(item).filter((p) => !declared.has(p));
 		if (undeclared.length > 0) {

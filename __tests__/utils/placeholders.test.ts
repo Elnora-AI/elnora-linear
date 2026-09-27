@@ -28,8 +28,16 @@ describe("collectPlaceholders", () => {
 	});
 
 	it("rejects a mention nothing declares, before anything is written", () => {
-		const ops = [{ kind: "update", id: "ENG-1", description: "Related: new:2" }];
-		expect(() => collectPlaceholders(ops, isCreate, label)).toThrow(/Op #0: new:2 is not declared/);
+		const ops = [
+			{ kind: "create", id: "new:1", title: "A" },
+			{ kind: "update", id: "ENG-1", description: "Related: new:1, new:2" },
+		];
+		expect(() => collectPlaceholders(ops, isCreate, label)).toThrow(/Op #1: new:2 is not declared/);
+	});
+
+	it("leaves a batch that declares nothing as it was: its text goes out as written", () => {
+		const ops = [{ kind: "create", title: "A", description: "Related: new:2" }];
+		expect(collectPlaceholders(ops, isCreate, label)).toEqual(new Map());
 	});
 
 	it("rejects a malformed or repeated declaration", () => {
