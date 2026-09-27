@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.0](https://github.com/Elnora-AI/elnora-linear/compare/v2.4.1...v2.5.0) (2026-09-27)
+
+
+### Features
+
+* **issues:** batch-create and bulk-ops resolve new:N placeholders in ids and text ([#161](https://github.com/Elnora-AI/elnora-linear/issues/161)) ([3dd7ae6](https://github.com/Elnora-AI/elnora-linear/commit/3dd7ae64a2e796172c01c97c92f91bc59bbfdcd6))
+
 ## [2.4.1](https://github.com/Elnora-AI/elnora-linear/compare/v2.4.0...v2.4.1) (2026-09-25)
 
 
