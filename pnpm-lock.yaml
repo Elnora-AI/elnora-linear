@@ -12,8 +12,8 @@ importers:
         specifier: ^0.128.0
         version: 0.128.0
       '@linear/sdk':
-        specifier: ^95.1.0
-        version: 95.1.0(graphql@16.14.0)
+        specifier: ^97.0.0
+        version: 97.0.0(graphql@16.14.0)
       ajv:
         specifier: ^8.20.0
         version: 8.20.0
@@ -286,9 +286,9 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@linear/sdk@95.1.0':
-    resolution: {integrity: sha512-c1BzIWqVEDcTV42EuEOVFYrYjmsqFBmaR/105xbOY9SmMPBrtcE4+BNHFfTa4WtrWN2cL3EJ9c+zcccZxNSWsQ==}
-    engines: {node: '>=18.x'}
+  '@linear/sdk@97.0.0':
+    resolution: {integrity: sha512-ntgZI06I37DTp/XULYTPbOg1t7vJRo72JRSkMjdgG+GbUEHdSkYsUjN0dR42go/2LvLRKWJD3jVehm0wE5haEg==}
+    engines: {node: ^20.19.0 || >=22.12.0}
 
   '@oxc-project/types@0.151.0':
     resolution: {integrity: sha512-J1yXrIlNDZVzE3ada310xeAw7nH8yCAyLPuUIsjKatFPmfn5bS1oW+cM+QsGOtVWd5nhSpbwZWx/rue+r5Z+PA==}
@@ -991,7 +991,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
 
-  '@linear/sdk@95.1.0(graphql@16.14.0)':
+  '@linear/sdk@97.0.0(graphql@16.14.0)':
     dependencies:
       '@graphql-typed-document-node/core': 3.2.0(graphql@16.14.0)
     transitivePeerDependencies:
