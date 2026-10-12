@@ -9,14 +9,12 @@
 // issueIdentifier so the LLM sees each issue's evidence together.
 
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import type { BulkIssueNode } from "../lib/bulk-graphql.js";
+import { PACKAGE_ROOT } from "../package-root.js";
 import type { Signal } from "../signals/types.js";
 
-// dist/curator/snapshot.js → package root is two up. Same for src/ during tests.
-const HERE = dirname(fileURLToPath(import.meta.url));
-const BUNDLED_TIERING_RULES_PATH = resolve(HERE, "..", "..", "references", "curator-tiering-rules.md");
+const BUNDLED_TIERING_RULES_PATH = join(PACKAGE_ROOT, "references", "curator-tiering-rules.md");
 
 export interface PendingQuestion {
 	issue_id: string;

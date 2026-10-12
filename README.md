@@ -153,7 +153,7 @@ Full details in [SAFETY.md](SAFETY.md).
 | `SLACK_TOKEN` | `slack_messages` signal source (read-only — outbound posting not shipped yet) |
 | `LINEAR_ALLOW_EXTERNAL_COMMAND=1` | `external_command` signal source (off by default) |
 
-npm dependencies (auto-installed): [`@linear/sdk`](https://www.npmjs.com/package/@linear/sdk), [`@anthropic-ai/sdk`](https://www.npmjs.com/package/@anthropic-ai/sdk), [`commander`](https://www.npmjs.com/package/commander), [`ajv`](https://www.npmjs.com/package/ajv) + [`ajv-formats`](https://www.npmjs.com/package/ajv-formats).
+npm dependencies (bundled into `dist/cli.js`, nothing to install): [`@linear/sdk`](https://www.npmjs.com/package/@linear/sdk), [`@anthropic-ai/sdk`](https://www.npmjs.com/package/@anthropic-ai/sdk), [`commander`](https://www.npmjs.com/package/commander), [`ajv`](https://www.npmjs.com/package/ajv) + [`ajv-formats`](https://www.npmjs.com/package/ajv-formats).
 
 ---
 

@@ -20,14 +20,10 @@
 
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import type { Command } from "commander";
+import { PACKAGE_ROOT } from "../package-root.js";
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-// dist/commands/curator-slack-bridge.js → package root is two up; same for
-// src/commands/curator-slack-bridge.ts.
-const PACKAGE_ROOT = resolve(HERE, "..", "..");
 const BRIDGE_PATH = join(PACKAGE_ROOT, "bridges", "slack", "bridge.py");
 
 const PYTHON_CANDIDATES = ["python3", "python"];

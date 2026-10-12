@@ -3,11 +3,13 @@
 // Process-wide cache so a single CLI invocation only auths + constructs once,
 // no matter how many commands invoke it. Tests can reset via resetLinearClient.
 
-import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { LinearClient } from "@linear/sdk";
+import { PACKAGE_ROOT } from "../package-root.js";
 import { type GetApiKeyOptions, getApiKey } from "./auth.js";
 
-const pkg = createRequire(import.meta.url)("../../package.json") as { version: string };
+const pkg = JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8")) as { version: string };
 const USER_AGENT = `@elnora-ai/linear/${pkg.version}`;
 
 let cached: LinearClient | null = null;
