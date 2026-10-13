@@ -7,13 +7,19 @@ settings:
 importers:
 
   .:
-    dependencies:
+    devDependencies:
       '@anthropic-ai/sdk':
         specifier: ^0.133.0
         version: 0.133.0
+      '@biomejs/biome':
+        specifier: ^2.5.13
+        version: 2.5.14
       '@linear/sdk':
         specifier: ^97.1.0
         version: 97.1.0(graphql@16.14.0)
+      '@types/node':
+        specifier: ^26.6.1
+        version: 26.6.4
       ajv:
         specifier: ^8.20.0
         version: 8.20.0
@@ -23,13 +29,9 @@ importers:
       commander:
         specifier: ^15.0.0
         version: 15.0.0
-    devDependencies:
-      '@biomejs/biome':
-        specifier: ^2.5.13
-        version: 2.5.14
-      '@types/node':
-        specifier: ^26.6.1
-        version: 26.6.4
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
       tsx:
         specifier: ^4.22.4
         version: 4.23.15

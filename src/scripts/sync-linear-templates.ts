@@ -10,8 +10,8 @@
 
 import { readdirSync, readFileSync } from "node:fs";
 import { basename, extname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import type { LinearClient, Template } from "@linear/sdk";
+import { PACKAGE_ROOT } from "../package-root.js";
 
 const SOURCE_TAG_RE = /<!--\s*elnora-linear-template-source:\s*(.+?)\s*-->/i;
 
@@ -38,14 +38,9 @@ export interface SyncResult {
 	plan: PlanEntry[];
 }
 
-/**
- * Default `<package-root>/templates/`. Resolves to dist/scripts/ when running
- * the published package and src/scripts/ during local development; both are
- * three levels under the package root.
- */
+/** Default `<package-root>/templates/`. */
 function defaultTemplatesDir(): string {
-	const scriptDir = fileURLToPath(new URL(".", import.meta.url));
-	return join(scriptDir, "..", "..", "templates");
+	return join(PACKAGE_ROOT, "templates");
 }
 
 function readTemplateFiles(dir: string): { filename: string; name: string; body: string }[] {

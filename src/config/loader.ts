@@ -12,20 +12,19 @@
 // mode (default) and warn-and-continue in non-strict mode.
 
 import { existsSync, readFileSync } from "node:fs";
-import { createRequire } from "node:module";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, resolve } from "node:path";
 
 import type { ErrorObject, ValidateFunction } from "ajv";
+import { Ajv2020 } from "ajv/dist/2020.js";
+import ajvFormats from "ajv-formats";
 
-// ajv@8 and ajv-formats@3 ship as CommonJS. TypeScript's Node16 module
-// resolution doesn't synthesize default exports cleanly for CJS, so we load
-// them via createRequire. Types still come from the package via `import type`.
-const cjsRequire = createRequire(import.meta.url);
-const { Ajv2020 } = cjsRequire("ajv/dist/2020.js") as typeof import("ajv/dist/2020.js");
-const addFormats = cjsRequire("ajv-formats") as typeof import("ajv-formats").default;
+// ajv-formats@3 ships as CommonJS. TypeScript's Node16 module resolution types
+// its default import as the whole module, so the plugin function is `.default`.
+// Static imports (not createRequire) so esbuild bundles both into dist/cli.js.
+const addFormats = ajvFormats.default;
 
+import { PACKAGE_ROOT } from "../package-root.js";
 import {
 	type LinearConfig,
 	type ProjectsConfig,
@@ -58,11 +57,6 @@ interface LabelPolicyShape {
 	>;
 }
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-// In source: src/config/loader.ts → repo root is two up.
-// In dist:   dist/config/loader.js → package root is two up.
-// Either way, schemas/ and references/ are siblings of src/dist.
-const PACKAGE_ROOT = resolve(HERE, "..", "..");
 export const BUNDLED_SCHEMAS_DIR = join(PACKAGE_ROOT, "schemas");
 export const BUNDLED_REFERENCES_DIR = join(PACKAGE_ROOT, "references");
 

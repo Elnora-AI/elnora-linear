@@ -7,12 +7,9 @@
 // speaks OpenAI Chat Completions over fetch.
 
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
+import { PACKAGE_ROOT } from "../package-root.js";
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-// dist/curator/llm.js → package root is two up; same for src/curator/llm.ts.
-const PACKAGE_ROOT = resolve(HERE, "..", "..");
 const BUNDLED_AGENT_PATH = join(PACKAGE_ROOT, "agents", "linear-state-curator.md");
 
 export interface CuratorActionBase {
