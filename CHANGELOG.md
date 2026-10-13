@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.1](https://github.com/Elnora-AI/elnora-linear/compare/v2.5.0...v2.5.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* bundle the CLI so the plugin lists no packages Claude Code cannot install ([#173](https://github.com/Elnora-AI/elnora-linear/issues/173)) ([cfbb1a9](https://github.com/Elnora-AI/elnora-linear/commit/cfbb1a935d04d8936c704485cd56f784841b7a0f))
+
 ## [2.5.0](https://github.com/Elnora-AI/elnora-linear/compare/v2.4.1...v2.5.0) (2026-09-27)
 
 
