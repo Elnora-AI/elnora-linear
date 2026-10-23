@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.2](https://github.com/Elnora-AI/elnora-linear/compare/v2.5.1...v2.5.2) (2026-10-23)
+
+
+### Bug Fixes
+
+* **deps:** ship the @linear/sdk 98.0.0 bundle ([#185](https://github.com/Elnora-AI/elnora-linear/issues/185)) ([007e04b](https://github.com/Elnora-AI/elnora-linear/commit/007e04b3e86a45038aff74b7395b2896b811bcef))
+
 ## [2.5.1](https://github.com/Elnora-AI/elnora-linear/compare/v2.5.0...v2.5.1) (2026-10-13)
 
 
