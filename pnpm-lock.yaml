@@ -28,7 +28,7 @@ importers:
         version: 3.0.1(ajv@8.20.0)
       commander:
         specifier: ^15.0.0
-        version: 15.0.0
+        version: 15.1.0
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -578,8 +578,8 @@ packages:
     resolution: {integrity: sha512-XWAtwJ6OHO+tj0EKCs0Y2UamnyOxseZWltU4x2U2wh8g4AigdjwvtUjvLP2tqkA/avxHEtzxNaqGq/YGNwckKg==}
     engines: {node: '>=18'}
 
-  commander@15.0.0:
-    resolution: {integrity: sha512-z67u4ZhzCL/Tydu1lJARtEZYWbWaN7oYLHbsuzocr6y4N6WZAagG3RQ4FW61V1/0+jImpj293XfrcYnd1qxtPg==}
+  commander@15.1.0:
+    resolution: {integrity: sha512-cgnQ88TRrWcC7pVq46RzJVRMktu3W2RcbnoidnfBsl1bmDCBwJS/udcIZpKoCrbAYYaCqsz1yZCVIgbIaU3ddQ==}
     engines: {node: '>=22.12.0'}
 
   detect-libc@2.1.2:
@@ -1170,7 +1170,7 @@ snapshots:
 
   chai@6.3.0: {}
 
-  commander@15.0.0: {}
+  commander@15.1.0: {}
 
   detect-libc@2.1.2: {}
 
