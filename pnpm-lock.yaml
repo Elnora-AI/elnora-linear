@@ -15,8 +15,8 @@ importers:
         specifier: ^2.5.15
         version: 2.6.6
       '@linear/sdk':
-        specifier: ^101.1.0
-        version: 101.1.0(graphql@16.14.0)
+        specifier: ^103.0.0
+        version: 103.0.0(graphql@16.14.0)
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.6
@@ -300,8 +300,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@linear/sdk@101.1.0':
-    resolution: {integrity: sha512-sDlYKMoTiOQU1C6+B2451qMbrR6zdKbBZfqIGp/dpZdVeOzYQSmp8e4uUHlCdMuFM7sRhQFMIl82AtwoaKYW5g==}
+  '@linear/sdk@103.0.0':
+    resolution: {integrity: sha512-JLkRB9f16DVVy+PLCIr9o4C4RiXQNIBgLAPk4OJpTxxoO8uxcFfgmTGadO0VNFAbA3BKAHQ96CAeQ2FE1ogviw==}
     engines: {node: ^20.19.0 || >=22.12.0}
 
   '@opentelemetry/api@1.10.0':
@@ -1012,7 +1012,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
 
-  '@linear/sdk@101.1.0(graphql@16.14.0)':
+  '@linear/sdk@103.0.0(graphql@16.14.0)':
     dependencies:
       '@graphql-typed-document-node/core': 3.2.0(graphql@16.14.0)
     transitivePeerDependencies:
